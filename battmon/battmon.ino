@@ -5,7 +5,7 @@
 
 // DEFINITIONS
 #define PROTO
-#define DEBUG
+//#define DEBUG
 
 #define BUTTON_NONE     0
 #define BUTTON_ENTER    1
@@ -26,8 +26,12 @@ RTC_DS1307 RTC;
 // RTC and Timing
 int currentSecond = 0;  // reading the seconds from the RTC
 int wasSecond = 0;      // to compare seconds to the last loop
+byte secondPassed = false;
 
 unsigned long currentMillis = 0;  // millis for each loop for delays
+unsigned long refreshMillis = 0;
+const int refreshDelay = 1000;
+byte refresh = false;
 
 // voltage
 float voltage = 12.5;     // final voltage to be displayed
@@ -52,15 +56,16 @@ byte buttonPressed = 0;
 byte buttonWas = 0;
 
 
+
+
+// settings
 int selectCount = 0;
-int enterCount = 0;
-
-
+int backlightLevel = 0;
 
 
 #ifdef PROTO
-    int selectVolts = 140;
-    int enterVolts = 740;
+    int selectVolts = 740;
+    int enterVolts = 140;
 #endif
 
 
@@ -93,6 +98,24 @@ void loop() {
     // capture millis at the start of the loop
     currentMillis = millis();
 
+    if ((currentMillis - refreshMillis) > refreshDelay) {
+        refresh = true;
+        refreshMillis = currentMillis;
+    }
+
+    else {
+        refresh = false;
+    }
+
+    checkSecond();
+
+    // COUNT AMP HOURS
+    // just counting seconds at the moment
+    if (secondPassed) {
+        ampHours++;
+    }
+    
+
     // run the debug function if in debug mode
     #ifdef DEBUG
         debug();
@@ -111,16 +134,35 @@ void loop() {
                     break;
                 case BUTTON_SELECT:
                     lcd.clear();
-                    selectCount = (selectCount + 1) % 20;
+                    selectCount = (selectCount + 1) % 4;
                     break;
                 case BUTTON_ENTER:
-                    lcd.clear();
-                    enterCount = (enterCount + 1) % 20;
+                    switch (selectCount) {
+                        case 0:
+                            backlightLevel = (backlightLevel + 1) % 3;
+                            setBack(backlightLevel);
+                    }
                     break;    
             }
             buttonAction = false;
         }
     }
+
+    switch (selectCount) {
+        case 0:
+            mainScreen();
+        break;
+        case 1:
+            tempScreen();
+        break;
+        case 2:
+            voltScreen();
+        break;
+        case 3:
+            ampHourScreen();
+        break;
+    }
+    
 
         
 
@@ -142,9 +184,7 @@ void debug() {
     lcd.setCursor(0, 1);
     lcd.print("s");
     lcd.print(selectCount);
-    lcd.setCursor(5, 1);
-    lcd.print("e");
-    lcd.print(enterCount);
+
 }
 
 byte checkButton(){
@@ -168,5 +208,79 @@ byte checkButton(){
     buttonWas = buttonPressed;
 
     return buttonPressed;
+}
+
+void setBack(int level) {
+    // Sets the level of the LCD backlight
+    switch (level) {
+        case 0:
+            digitalWrite(backlightPin, HIGH);
+        break;
+        case 1:
+            analogWrite(backlightPin, 127);
+        break;
+        case 2:
+            digitalWrite(backlightPin, LOW);
+        break;
+    }
+}
+
+void checkSecond() {
+    DateTime now = RTC.now();
+    currentSecond = now.second();
+
+    if (currentSecond != wasSecond) {
+        secondPassed = true;
+    }
+    else {
+        secondPassed = false;
+    }
+
+    wasSecond = currentSecond;
+}
+
+
+void mainScreen() {
+
+    // VOLTAGE
+    lcd.setCursor(0, 0);
+    lcd.print("V:");
+    if (refresh) {
+        lcd.print(voltage, 1);
+    }
+
+    // CURRENT
+    lcd.setCursor(0, 1);
+    lcd.print("A:");
+    if (refresh) {
+        lcd.print(current, 1);
+    }
+
+    // TEMPERATURE
+    lcd.setCursor(8, 0);
+    lcd.print("T:");
+    if (refresh) {
+        lcd.print(temp, 1);
+    }
+
+    // AMP HOURS
+    lcd.setCursor(8, 1);
+    lcd.print("%:");
+    lcd.print(ampHours, 0);
+}
+
+void tempScreen() {
+    lcd.setCursor(0, 0);
+    lcd.print("TEMP SCREEN");
+}
+
+void voltScreen() {
+    lcd.setCursor(0, 0);
+    lcd.print("VOLT SCREEN");
+}
+
+void ampHourScreen() {
+    lcd.setCursor(0, 0);
+    lcd.print("AH SCREEN");
 }
 
