@@ -17,6 +17,7 @@
     LiquidCrystal lcd(8,9,4,5,6,7);
     const int backlightPin = 3;
     const int buttonPin = A0;
+    const int voltPin = A3;
 #endif
 
 RTC_DS1307 RTC;
@@ -33,8 +34,19 @@ unsigned long refreshMillis = 0;
 const int refreshDelay = 1000;
 byte refresh = false;
 
+const int numReadings = 50;
+
 // voltage
+float topVolts = 5;
+float kVolts = 1;
 float voltage = 12.5;     // final voltage to be displayed
+int rawVolts = 0;
+int arrayVolts[numReadings];
+float totalVolts = 0;
+int iVolts = 0;
+
+
+
 
 // current
 float current = 10;       // final current to be displayed
@@ -62,6 +74,18 @@ byte buttonWas = 0;
 int selectCount = 0;
 int backlightLevel = 0;
 
+// AH SYMBOL
+byte ahSymbol[8] = {
+  B01000,
+  B10100,
+  B11100,
+  B10100,
+  B00000,
+  B00101,
+  B00111,
+  B00101,
+};
+
 
 #ifdef PROTO
     int selectVolts = 740;
@@ -71,25 +95,35 @@ int backlightLevel = 0;
 
 void setup() {
     // NEW BEGININGS
+    lcd.createChar(2, ahSymbol);
     lcd.begin(16,2);
     Wire.begin();
     RTC.begin();
 
     if (!RTC.isrunning()){
-        lcd.print(F("CLOCK ERROR")); 
+        lcd.print(F("CLOCK ERROR"));
+        delay(5000); 
     }
 
     // PRINT TO LCD AS FAUX SPLASH SCREEN
     lcd.print(F("  The Battery   "));
     lcd.setCursor(0, 1);
     lcd.print(F("    Monitor     "));
+    delay(300);
 
     // PIN THE TAIL ON THE DONKY
     pinMode(backlightPin, OUTPUT);
 
     pinMode(buttonPin, INPUT);
+    pinMode(voltPin, INPUT);
 
     digitalWrite(backlightPin, HIGH);
+    digitalWrite(voltPin, LOW);
+
+    // CLEAR AVERAGING ARRAYS
+    for (int i = 0; i < numReadings; i++) {
+        arrayVolts[i] = 0;
+    }
 
     lcd.clear();
     
@@ -109,13 +143,27 @@ void loop() {
 
     checkSecond();
 
+    // VOLTAGE
+    rawVolts = analogRead(voltPin);
+
+    totalVolts -= arrayVolts[iVolts];
+    arrayVolts[iVolts] = rawVolts;
+    totalVolts += arrayVolts[iVolts];
+    iVolts++;
+
+    if (iVolts >= numReadings) {
+        iVolts = 0;
+    }
+
+    voltage = ((totalVolts / numReadings) * (topVolts / 1023.0)) * kVolts;
+
+    
     // COUNT AMP HOURS
     // just counting seconds at the moment
     if (secondPassed) {
         ampHours++;
     }
     
-
     // run the debug function if in debug mode
     #ifdef DEBUG
         debug();
@@ -226,6 +274,7 @@ void setBack(int level) {
 }
 
 void checkSecond() {
+    // TODO check clock is running and print error if not
     DateTime now = RTC.now();
     currentSecond = now.second();
 
@@ -244,43 +293,44 @@ void mainScreen() {
 
     // VOLTAGE
     lcd.setCursor(0, 0);
-    lcd.print("V:");
+    lcd.print(F("V:"));
     if (refresh) {
         lcd.print(voltage, 1);
     }
 
     // CURRENT
     lcd.setCursor(0, 1);
-    lcd.print("A:");
+    lcd.print(F("A:"));
     if (refresh) {
         lcd.print(current, 1);
     }
 
     // TEMPERATURE
     lcd.setCursor(8, 0);
-    lcd.print("T:");
+    lcd.print(F("T:"));
     if (refresh) {
         lcd.print(temp, 1);
     }
 
     // AMP HOURS
     lcd.setCursor(8, 1);
-    lcd.print("%:");
+    lcd.write(byte(2));
+    lcd.print(F(":"));
     lcd.print(ampHours, 0);
 }
 
 void tempScreen() {
     lcd.setCursor(0, 0);
-    lcd.print("TEMP SCREEN");
+    lcd.print(F("TEMP SCREEN"));
 }
 
 void voltScreen() {
     lcd.setCursor(0, 0);
-    lcd.print("VOLT SCREEN");
+    lcd.print(F("VOLT SCREEN"));
 }
 
 void ampHourScreen() {
     lcd.setCursor(0, 0);
-    lcd.print("AH SCREEN");
+    lcd.print(F("AH SCREEN"));
 }
 
