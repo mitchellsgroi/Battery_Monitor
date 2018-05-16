@@ -1,3 +1,11 @@
+/*
+## TODO
+    - Change the 15 second interval thing to variable
+    - EEPROM Stuff, save the settings, read them and set defaults if no good
+    - Temperature probes, can I have two?
+
+
+*/
 // LIBRARIES
 #include <Wire.h>
 #include "RTClib.h"
@@ -18,6 +26,9 @@
     const int backlightPin = 3;
     const int buttonPin = A0;
     const int voltPin = A3;
+
+    // VOLTAGE
+    float topVolts = 5;
 #endif
 
 RTC_DS1307 RTC;
@@ -28,6 +39,7 @@ RTC_DS1307 RTC;
 int currentSecond = 0;  // reading the seconds from the RTC
 int wasSecond = 0;      // to compare seconds to the last loop
 byte secondPassed = false;
+byte fifteenSecond = false;
 
 unsigned long currentMillis = 0;  // millis for each loop for delays
 unsigned long refreshMillis = 0;
@@ -37,13 +49,17 @@ byte refresh = false;
 const int numReadings = 50;
 
 // voltage
-float topVolts = 5;
-float kVolts = 1;
+
+float kVolts = 0.97;
 float voltage = 12.5;     // final voltage to be displayed
 int rawVolts = 0;
 int arrayVolts[numReadings];
 float totalVolts = 0;
 int iVolts = 0;
+
+byte voltAlarm = 0;
+float voltHigh = 15.1;
+float voltLow  = 11.8;
 
 
 
@@ -53,9 +69,13 @@ float current = 10;       // final current to be displayed
 
 // amp hours
 float ampHours = 0;     // total amp hours
+byte ampHourReset = 0;
 
 // temperature
 float temp = 2.5;       // final temperature reading to be displayed
+byte tempAlarm = 0; 
+float tempLow = -2.5;
+float tempHigh = 3.5;
 
 // buttons
 unsigned long buttonMillis = 0;
@@ -66,6 +86,9 @@ byte whichButton = 0;
 byte buttonAction = false;
 byte buttonPressed = 0;
 byte buttonWas = 0;
+
+int screenReturn = 0;
+int screenMax = 3000;
 
 
 
@@ -163,6 +186,13 @@ void loop() {
     if (secondPassed) {
         ampHours++;
     }
+
+    // TEMPERATURE
+    if (fifteenSecond) {
+        // ping the sensor(s) for the temp reading
+        // just counting for now
+        temp++;
+    }
     
     // run the debug function if in debug mode
     #ifdef DEBUG
@@ -177,6 +207,7 @@ void loop() {
         buttonMillis = currentMillis;
 
         if (buttonAction == true) {
+            screenReturn = 0;
             switch (whichButton) {
                 case BUTTON_NONE:
                     break;
@@ -189,12 +220,33 @@ void loop() {
                         case 0:
                             backlightLevel = (backlightLevel + 1) % 3;
                             setBack(backlightLevel);
-                    }
-                    break;    
+                        break;
+                        case 1:
+                            lcd.clear();
+                            tempAlarm = (tempAlarm + 1) % 4;  
+                        break;
+                        case 2:
+                            lcd.clear();
+                            voltAlarm = (voltAlarm + 1) % 4;
+                        break;
+                        case 3:
+                            ampHourReset = (ampHourReset + 1) % 2;
+                        break;
+                    }  
             }
             buttonAction = false;
         }
     }
+
+    if (selectCount != 0) {
+        screenReturn++;
+        if (screenReturn >= screenMax) {
+            lcd.clear();
+            selectCount = 0;
+            screenReturn = 0;
+        }
+    }
+
 
     switch (selectCount) {
         case 0:
@@ -274,7 +326,12 @@ void setBack(int level) {
 }
 
 void checkSecond() {
-    // TODO check clock is running and print error if not
+    if (!RTC.isrunning()){
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(F("RTC ERROR"));
+        delay(1000);
+    }
     DateTime now = RTC.now();
     currentSecond = now.second();
 
@@ -285,12 +342,24 @@ void checkSecond() {
         secondPassed = false;
     }
 
-    wasSecond = currentSecond;
+    // change the magic 15 here to a variable that can be changed
+    if (((currentSecond % 15) == 0) && currentSecond != wasSecond) {
+        fifteenSecond = true;
+    }
+    else {
+        fifteenSecond = false;
+    }
+    
+    wasSecond = currentSecond;        
 }
 
 
 void mainScreen() {
-
+    if (ampHourReset == 1) {
+        ampHours = 0;
+        ampHourReset = 0;
+    }
+    
     // VOLTAGE
     lcd.setCursor(0, 0);
     lcd.print(F("V:"));
@@ -321,16 +390,67 @@ void mainScreen() {
 
 void tempScreen() {
     lcd.setCursor(0, 0);
-    lcd.print(F("TEMP SCREEN"));
+    lcd.print(F("Temp Alarm"));
+    lcd.setCursor(0, 1);
+    switch (tempAlarm) {
+        case 0:
+            lcd.print(tempLow, 1);
+            lcd.print((char)223);
+            lcd.print(" and ");
+            lcd.print(tempHigh, 1);
+            lcd.print((char)223);
+        break;
+        case 1:
+            lcd.print(tempHigh, 1);
+            lcd.print((char)223);
+        break;
+        case 2:
+            lcd.print(tempLow, 1);
+            lcd.print((char)223);
+        break;
+        case 3:
+            lcd.print(F("Off"));  
+        break;          
+    }
 }
 
 void voltScreen() {
     lcd.setCursor(0, 0);
-    lcd.print(F("VOLT SCREEN"));
+    lcd.print(F("Voltage Alarm"));
+    lcd.setCursor(0, 1);
+    switch (voltAlarm) {
+        case 0:
+            lcd.print(voltLow, 1);
+            lcd.print(F("V"));
+            lcd.print(" and ");
+            lcd.print(voltHigh, 1);
+            lcd.print(F("V"));
+        break;
+        case 1:
+            lcd.print(voltHigh, 1);
+            lcd.print(F("V"));
+        break;
+        case 2:
+            lcd.print(voltLow, 1);
+            lcd.print(F("V"));
+        break;
+        case 3:
+            lcd.print(F("Off"));  
+        break;          
+    }
 }
 
 void ampHourScreen() {
     lcd.setCursor(0, 0);
-    lcd.print(F("AH SCREEN"));
+    lcd.print(F("Reset Amp Hours?"));
+    lcd.setCursor(0, 1);
+    switch (ampHourReset) {
+        case 0:
+            lcd.print(F("No "));
+        break;
+        case 1:
+            lcd.print(F("Yes"));
+        break;
+    }
 }
 
