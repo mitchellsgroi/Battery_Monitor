@@ -3,6 +3,11 @@
     - Change the 15 second interval thing to variable
     - EEPROM Stuff, save the settings, read them and set defaults if no good
     - Temperature probes, can I have two?
+    - Fix Enter Setup --DONE
+    - Make the setup screens actually work
+    - Make the alarms actually work
+    - Get current readings
+    - Stopwatch the AH reading for accuracy
 
 
 */
@@ -18,6 +23,10 @@
 #define BUTTON_NONE     0
 #define BUTTON_ENTER    1
 #define BUTTON_SELECT   2
+
+#define NORMAL 5
+#define SETUP 6
+
 
 // INITIALISE
 
@@ -94,8 +103,14 @@ int screenMax = 3000;
 
 
 // settings
-int selectCount = 0;
-int backlightLevel = 0;
+byte selectCount = 0;
+byte backlightLevel = 0;
+byte setupCount = 0;
+byte tempSetupCount = 0;
+byte numScreens = 5;
+
+byte enterSetup = false;
+byte exitSetup = 0;
 
 // AH SYMBOL
 byte ahSymbol[8] = {
@@ -182,9 +197,12 @@ void loop() {
 
     
     // COUNT AMP HOURS
-    // just counting seconds at the moment
     if (secondPassed) {
-        ampHours++;
+        ampHours += current / 3600;
+
+        if (ampHours < 0) {
+            ampHours = 0;
+        }
     }
 
     // TEMPERATURE
@@ -213,7 +231,13 @@ void loop() {
                     break;
                 case BUTTON_SELECT:
                     lcd.clear();
-                    selectCount = (selectCount + 1) % 4;
+                    if (selectCount < 5) {
+                        selectCount = (selectCount + 1) % numScreens;
+                        
+                    }
+                    else {
+                        setupCount = (setupCount + 1) % 5;
+                    }
                     break;
                 case BUTTON_ENTER:
                     switch (selectCount) {
@@ -230,7 +254,22 @@ void loop() {
                             voltAlarm = (voltAlarm + 1) % 4;
                         break;
                         case 3:
-                            ampHourReset = (ampHourReset + 1) % 2;
+                            ampHourReset = !ampHourReset;
+                        break;
+                        case 4:
+                            enterSetup = !enterSetup;
+                        break;
+                        case 5:
+                            switch (setupCount) {
+                                case 0:
+                                    tempSetupCount = (tempSetupCount + 1) % 2;
+                                break;
+                                case 5:
+                                    exitSetup = !exitSetup;
+                                break;
+                            }
+                            
+                            
                         break;
                     }  
             }
@@ -261,6 +300,30 @@ void loop() {
         case 3:
             ampHourScreen();
         break;
+        case 4:
+            enterSetupScreen();
+        break;
+        case 5:
+            switch (setupCount) {
+                case 0:
+                    tempSetupScreen();
+                break;
+                case 1:
+                    voltSetupScreen();
+                break;
+                case 2:
+                    exitSetupScreen();
+                break;
+                case 3:
+                    if (exitSetup) {
+                        selectCount = 0;
+                    }
+                else {
+                    setupCount = 0;
+                }
+                break;
+                   
+            }
     }
     
 
@@ -329,7 +392,7 @@ void checkSecond() {
     if (!RTC.isrunning()){
         lcd.clear();
         lcd.setCursor(0, 0);
-        lcd.print(F("RTC ERROR"));
+        lcd.print(F("CLOCK ERROR"));
         delay(1000);
     }
     DateTime now = RTC.now();
@@ -355,10 +418,13 @@ void checkSecond() {
 
 
 void mainScreen() {
-    if (ampHourReset == 1) {
+    if (ampHourReset) {
         ampHours = 0;
-        ampHourReset = 0;
+        ampHourReset = false;
     }
+
+    enterSetup = false;
+    exitSetup = false;
     
     // VOLTAGE
     lcd.setCursor(0, 0);
@@ -444,13 +510,84 @@ void ampHourScreen() {
     lcd.setCursor(0, 0);
     lcd.print(F("Reset Amp Hours?"));
     lcd.setCursor(0, 1);
-    switch (ampHourReset) {
+    if (!ampHourReset) {
+        lcd.print(F("No "));
+    }
+    else {
+        lcd.print(F("Yes"));
+    }
+}
+
+void enterSetupScreen() {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Enter Setup?"));
+    lcd.setCursor(0, 1);
+    if (!enterSetup) {
+        lcd.print("No ");
+        numScreens = NORMAL;
+    }
+    else {
+        lcd.print("Yes");
+        numScreens = SETUP;
+    }
+}
+
+void tempSetupScreen() {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Temp Alarm"));
+    switch (tempSetupCount) {
         case 0:
-            lcd.print(F("No "));
+            lcd.setCursor(10, 0);
+            lcd.print(" High");
+            lcd.setCursor(0, 1);
+            lcd.print("+10.2C");
         break;
         case 1:
-            lcd.print(F("Yes"));
+            lcd.setCursor(10, 0);
+            lcd.print(" Low ");
+            lcd.setCursor(0, 1);
+            lcd.print("-12.3C");
+        break;    
+    }
+}
+
+void voltSetupScreen() {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Volt Alarm Limits"));
+    lcd.setCursor(0, 1);
+    lcd.print("Low:");
+    lcd.print("00.0V High: 00.0V");
+    
+}
+
+void exitSetupScreen() {
+    lcd.setCursor(0, 0);
+    lcd.print(F("Exit Setup?"));
+    lcd.setCursor(0, 1);
+    switch (exitSetup) {
+        case 0:
+            lcd.print("No ");
+        break;
+        case 1:
+            lcd.print("Yes");
         break;
     }
 }
+
+void floatDetect() {
+    // if the batteries voltage has been above 14, current has stayed very low, and the voltage is still above 13.2ish
+        // then battery is floating
+        // reset amp hours to zero and keep them there while floating
+
+    // once current goes high or voltage goes lower
+        // then battery is not floating
+        // reset the maxvolts
+}
+
+void chargeDetect() {
+    // if charge input is high or current is in negative
+        // charging is true
+        // turn on the LED       
+}
+
 
