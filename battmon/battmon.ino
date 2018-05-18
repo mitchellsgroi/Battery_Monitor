@@ -9,6 +9,9 @@
     - Get current readings
     - Stopwatch the AH reading for accuracy
     - truncate the AH rather than round
+    - fall back to millis if rtc is fucked
+    - add rtc status screen in setup
+    - Fix display bugs in setup screens
 
 
 */
@@ -141,14 +144,14 @@ void setup() {
 
     if (!RTC.isrunning()){
         lcd.print(F("CLOCK ERROR"));
-        delay(5000); 
+        delay(10); 
     }
 
     // PRINT TO LCD AS FAUX SPLASH SCREEN
     lcd.print(F("  The Battery   "));
     lcd.setCursor(0, 1);
     lcd.print(F("    Monitor     "));
-    delay(300);
+    delay(10);
 
     // PIN THE TAIL ON THE DONKY
     pinMode(backlightPin, OUTPUT);
@@ -231,13 +234,13 @@ void loop() {
                 case BUTTON_NONE:
                     break;
                 case BUTTON_SELECT:
-                    lcd.clear();
                     if (selectCount < 5) {
+                        lcd.clear();
                         selectCount = (selectCount + 1) % numScreens;
                         
                     }
                     else {
-                        setupCount = (setupCount + 1) % 5;
+                        setupCount++;
                     }
                     break;
                 case BUTTON_ENTER:
@@ -261,16 +264,7 @@ void loop() {
                             enterSetup = !enterSetup;
                         break;
                         case 5:
-                            switch (setupCount) {
-                                case 0:
-                                    tempSetupCount = (tempSetupCount + 1) % 2;
-                                break;
-                                case 5:
-                                    exitSetup = !exitSetup;
-                                break;
-                            }
-                            
-                            
+                            settingButtons();   
                         break;
                     }  
             }
@@ -305,26 +299,8 @@ void loop() {
             enterSetupScreen();
         break;
         case 5:
-            switch (setupCount) {
-                case 0:
-                    tempSetupScreen();
-                break;
-                case 1:
-                    voltSetupScreen();
-                break;
-                case 2:
-                    exitSetupScreen();
-                break;
-                case 3:
-                    if (exitSetup) {
-                        selectCount = 0;
-                    }
-                else {
-                    setupCount = 0;
-                }
-                break;
-                   
-            }
+            setupScreen();
+        break;
     }
     
 
@@ -390,12 +366,12 @@ void setBack(int level) {
 }
 
 void checkSecond() {
-    if (!RTC.isrunning()){
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(F("CLOCK ERROR"));
-        delay(1000);
-    }
+//    if (!RTC.isrunning()){
+//        lcd.clear();
+//        lcd.setCursor(0, 0);
+//        lcd.print(F("CLOCK ERROR"));
+//        delay(1000);
+//    }
     DateTime now = RTC.now();
     currentSecond = now.second();
 
@@ -415,6 +391,18 @@ void checkSecond() {
     }
     
     wasSecond = currentSecond;        
+}
+
+void settingButtons() {
+    switch (setupCount) {
+        case 0:
+            tempSetupCount = (tempSetupCount + 1) % 8;
+        break;
+        case 12:
+            lcd.clear();
+            exitSetup = !exitSetup;
+        break;
+    }
 }
 
 
@@ -533,22 +521,84 @@ void enterSetupScreen() {
     }
 }
 
-void tempSetupScreen() {
-    lcd.setCursor(0, 0);
-    lcd.print(F("Temp Alarm"));
-    switch (tempSetupCount) {
+void setupScreen() {
+    switch (setupCount) {
         case 0:
-            lcd.setCursor(10, 0);
-            lcd.print(" High");
+            lcd.setCursor(0, 0);
+            lcd.print("Temp Alarm High");
             lcd.setCursor(0, 1);
-            lcd.print("+10.2C");
+            lcd.print("C10.2");
         break;
         case 1:
+            lcd.setCursor(0, 1);
+            lcd.print("+C0.2");
+        break;
+        case 2:
+            lcd.setCursor(0, 1);
+            lcd.print("+1C.2");
+        break;        
+        case 3:
+            lcd.setCursor(0, 1);
+            lcd.print("+10.C");
+        break;            
+        case 4:
             lcd.setCursor(10, 0);
             lcd.print(" Low ");
             lcd.setCursor(0, 1);
-            lcd.print("-12.3C");
+            lcd.print("C12.3");
+        break;
+        case 5:
+            lcd.setCursor(0, 1);
+            lcd.print("-C2.3");
+        break;
+        case 6:
+            lcd.setCursor(0, 1);
+            lcd.print("-1C.3");
+        break;
+        case 7:
+            lcd.setCursor(0, 1);
+            lcd.print("-12.C");
+        break;
+        case 8:
+            lcd.setCursor(0, 0);
+            lcd.print(F("Volt Alarm Low"));
+            lcd.setCursor(0, 1);
+            lcd.print("C1.9");
+        break;
+        case 9:
+            lcd.setCursor(0, 1);
+            lcd.print("1C.9");
+        break;
+        case 10:
+            lcd.setCursor(0, 1);
+            lcd.print("11.C");
+        break;
+        case 11:
+            lcd.setCursor(0, 0);
+            lcd.print(F("RTC Status      "));
+            if (RTC.isrunning()){
+                lcd.setCursor(0, 1);
+                lcd.print(F("OK    "));                    
+            }
+            else {
+                lcd.setCursor(0, 1);
+                lcd.print(F("Error: isFucked"));
+            }
         break;    
+        case 12:
+            exitSetupScreen();
+        break;
+        case 13:
+            if (exitSetup) {
+                lcd.clear();
+                selectCount = 0;
+                setupCount = 0;
+            }
+
+            else {
+                lcd.clear();
+                setupCount = 0;
+            }
     }
 }
 
