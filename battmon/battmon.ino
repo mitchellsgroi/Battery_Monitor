@@ -8,6 +8,7 @@
     - Make the alarms actually work
     - Get current readings
     - Stopwatch the AH reading for accuracy
+    - truncate the AH rather than round
 
 
 */
@@ -74,7 +75,7 @@ float voltLow  = 11.8;
 
 
 // current
-float current = 10;       // final current to be displayed
+float current = 60;       // final current to be displayed
 
 // amp hours
 float ampHours = 0;     // total amp hours
@@ -451,7 +452,7 @@ void mainScreen() {
     lcd.setCursor(8, 1);
     lcd.write(byte(2));
     lcd.print(F(":"));
-    lcd.print(ampHours, 0);
+    lcd.print(ampHours, 1);
 }
 
 void tempScreen() {
