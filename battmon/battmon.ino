@@ -62,8 +62,11 @@ byte refresh = false;
 const int numReadings = 50;
 
 // ALARMS
+String plus = "+";
+String neg = "-";
+
 float tempLowAlarm = 0;
-byte tempLowSign = -1;
+byte tempLowSign = 0;
 byte tempLowTens = 0;
 byte tempLowOnes = 3;
 byte tempLowPoint = 5;
@@ -205,6 +208,8 @@ void setup() {
         arrayVolts[i] = 0;
     }
 
+    // set up the alarm values
+    convertAlarms();
     lcd.clear();
     
 }
@@ -286,23 +291,45 @@ void loop() {
 
     switch (selectCount) {
         case 0:
+            selectAddress = &selectCount;
+            enterAddress = &backlightLevel;
+            selectModulo = 100;
+            enterModulo = 3;
             mainScreen();
         break;
         case 1:
+            enterAddress = &tempAlarm;
+            enterModulo = 4;
             tempScreen();
         break;
         case 2:
+            enterAddress = &voltAlarm;
+            enterModulo = 4;
             voltScreen();
         break;
         case 3:
+            enterAddress = &ampHourReset;
+            enterModulo = 2;
             ampHourScreen();
         break;
         case 4:
+            enterAddress = &enterSetup;
+            enterModulo = 2;
             enterSetupScreen();
         break;
         case 5:
+            if (enterSetup) {
+                selectCount++;
+            }
+            else {
+                selectCount = 0;
+            }
+        break;
+        case 6:
+            selectAddress = &setupCount;
             setupScreen();
         break;
+        
     }
     
 
@@ -352,9 +379,9 @@ byte checkButton(){
     return buttonPressed;
 }
 
-void setBack(int level) {
+void setBack() {
     // Sets the level of the LCD backlight
-    switch (level) {
+    switch (backlightLevel) {
         case 0:
             digitalWrite(backlightPin, HIGH);
         break;
@@ -409,12 +436,6 @@ void settingButtons() {
 
 
 void mainScreen() {
-
-    selectAddress = &selectCount;
-    enterAddress = &backlightLevel;
-
-    selectModulo = numScreens;
-    enterModulo = 4;
     
     if (ampHourReset) {
         ampHours = 0;
@@ -459,18 +480,18 @@ void tempScreen() {
     lcd.setCursor(0, 1);
     switch (tempAlarm) {
         case 0:
-            lcd.print(tempLow, 1);
+            lcd.print(tempLowAlarm, 1);
             lcd.print((char)223);
             lcd.print(" and ");
-            lcd.print(tempHigh, 1);
+            lcd.print(tempHighAlarm, 1);
             lcd.print((char)223);
         break;
         case 1:
-            lcd.print(tempHigh, 1);
+            lcd.print(tempHighAlarm, 1);
             lcd.print((char)223);
         break;
         case 2:
-            lcd.print(tempLow, 1);
+            lcd.print(tempLowAlarm, 1);
             lcd.print((char)223);
         break;
         case 3:
@@ -534,14 +555,16 @@ void enterSetupScreen() {
 void setupScreen() {
     switch (setupCount) {
         case 0:
+            enterAddress = &tempLowSign;
+            enterModulo = 2;
             lcd.setCursor(0, 0);
-            lcd.print("Temp Alarm Low");
+            lcd.print(F("Temp Alarm Low"));
             lcd.setCursor(0, 1);
             if (tempLowSign == 1) {
-                flash("+");
+                flashString(plus);
             }    
             else {
-                flash("-");
+                flashString(neg);
             }
             lcd.print(tempLowTens);
             lcd.print(tempLowOnes);
@@ -551,6 +574,10 @@ void setupScreen() {
             
         break;
         case 1:
+            enterAddress = &tempLowTens;
+            enterModulo = 10;
+            lcd.setCursor(0, 0);
+            lcd.print(F("Temp Alarm Low"));            
             lcd.setCursor(0, 1);
             if (tempLowSign == 1) {
                 lcd.print("+");
@@ -565,6 +592,10 @@ void setupScreen() {
             lcd.print((char)223);
         break;
         case 2:
+            enterAddress = &tempLowOnes;
+            enterModulo = 10;
+            lcd.setCursor(0, 0);
+            lcd.print(F("Temp Alarm Low"));                    
             lcd.setCursor(0, 1);
             if (tempLowSign == 1) {
                 lcd.print("+");
@@ -579,6 +610,10 @@ void setupScreen() {
             lcd.print((char)223);
         break;        
         case 3:
+            enterAddress = &tempLowPoint;
+            enterModulo = 10;
+            lcd.setCursor(0, 0);
+            lcd.print(F("Temp Alarm Low"));
             lcd.setCursor(0, 1);
             if (tempLowSign == 1) {
                 lcd.print("+");
@@ -593,22 +628,76 @@ void setupScreen() {
             lcd.print((char)223);
         break;            
         case 4:
-            lcd.setCursor(11, 0);
-            lcd.print("High");
+            enterAddress = &tempHighSign;
+            enterModulo = 2;        
+            lcd.setCursor(0, 0);
+            lcd.print(F("Temp Alarm High"));
             lcd.setCursor(0, 1);
-            lcd.print("C12.3");
+            if (tempHighSign == 1) {
+                flashString(plus);
+            }    
+            else {
+                flashString(neg);
+            }
+            lcd.print(tempHighTens);
+            lcd.print(tempHighOnes);
+            lcd.print(".");
+            lcd.print(tempHighPoint);
+            lcd.print((char)223);
         break;
         case 5:
+            enterAddress = &tempHighTens;
+            enterModulo = 10;        
+            lcd.setCursor(0, 0);
+            lcd.print(F("Temp Alarm High"));
             lcd.setCursor(0, 1);
-            lcd.print("-C2.3");
+            if (tempHighSign == 1) {
+                lcd.print(plus);
+            }    
+            else {
+                lcd.print(neg);
+            }
+            flash(tempHighTens);
+            lcd.print(tempHighOnes);
+            lcd.print(".");
+            lcd.print(tempHighPoint);
+            lcd.print((char)223);
         break;
         case 6:
+            enterAddress = &tempHighOnes;
+            enterModulo = 10;        
+            lcd.setCursor(0, 0);
+            lcd.print(F("Temp Alarm High"));
             lcd.setCursor(0, 1);
-            lcd.print("-1C.3");
+            if (tempHighSign == 1) {
+                lcd.print(plus);
+            }    
+            else {
+                lcd.print(neg);
+            }
+            lcd.print(tempHighTens);
+            flash(tempHighOnes);
+            lcd.print(".");
+            lcd.print(tempHighPoint);
+            lcd.print((char)223);
         break;
         case 7:
+            enterAddress = &tempHighPoint;
+            enterModulo = 10;        
+            lcd.setCursor(0, 0);
+            lcd.print(F("Temp Alarm High"));
             lcd.setCursor(0, 1);
-            lcd.print("-12.C");
+            if (tempHighSign == 1) {
+                lcd.print(plus);
+            }    
+            else {
+                lcd.print(neg);
+            }
+            lcd.print(tempHighTens);
+            lcd.print(tempHighOnes);
+            lcd.print(".");
+            flash(tempHighPoint);
+            lcd.print((char)223);
         break;
         case 8:
             lcd.setCursor(0, 0);
@@ -643,6 +732,7 @@ void setupScreen() {
             convertAlarms();
             if (exitSetup) {
                 lcd.clear();
+                // save all settings to eeprom
                 selectCount = 0;
 
 
@@ -665,6 +755,8 @@ void voltSetupScreen() {
 }
 
 void exitSetupScreen() {
+    enterAddress = &exitSetup;
+    enterModulo = 2;
     lcd.setCursor(0, 0);
     lcd.print(F("Exit Setup?"));
     lcd.setCursor(0, 1);
@@ -696,13 +788,45 @@ void flash(byte x) {
     }
 }
 
+void flashString(String s) {
+    if (flashState) {
+        lcd.print(s); 
+    } 
+    else {
+        for (int i = 0; i < s.length(); i++){
+          lcd.print(" ");
+        }
+        
+    }    
+}
+
 void convertAlarms () {
     voltLowAlarm = voltLowOnes + (voltLowTens * 10) + (voltLowPoint * 0.1);
     voltHighAlarm = voltHighOnes + (voltHighTens * 10) + (voltHighPoint * 0.1);
 
-    tempLowAlarm = (tempLowOnes + (tempLowTens * 10) + (tempLowPoint * 0.1)) * tempLowSign;
-    tempHighAlarm = (tempHighOnes + (tempHighTens * 10) + (tempHighPoint * 0.1)) * tempHighSign;
+    tempLowAlarm = tempLowOnes + (tempLowTens * 10) + (tempLowPoint * 0.1);
+    tempHighAlarm = tempHighOnes + (tempHighTens * 10) + (tempHighPoint * 0.1);
+
+    if (!tempLowSign){
+      tempLowAlarm = tempLowAlarm * -1;
+    }
+
+    if (!tempHighSign) {
+      tempHighAlarm = tempHighAlarm * -1;
+    }
 }
+
+void settingsWrite(){
+  // write all settings to the EEPROM for persistance
+}
+
+void settingsRead(){
+  // read settings from EEPROM
+  // do only once in setup
+  // make sure to handle errors
+}
+
+
 
 void floatDetect() {
     // if the batteries voltage has been above 14, current has stayed very low, and the voltage is still above 13.2ish
@@ -725,10 +849,15 @@ void buttonIncrement() {
         case BUTTON_NONE:
         break;
         case BUTTON_SELECT:
-            *selectAddress = (*selectAddress + 1) % selectModulo;        
+            *selectAddress = (*selectAddress + 1) % selectModulo;
+            lcd.clear();        
         break;
         case BUTTON_ENTER:
             *enterAddress = (*enterAddress + 1) % enterModulo;
+            lcd.clear();
+            if (enterAddress == &backlightLevel){
+                setBack();
+            }
         break;
     }
     // varAtAddress = (varAtAddress + 1) % globalModulo
