@@ -127,6 +127,12 @@ byte buttonWas = 0;
 int screenReturn = 0;
 int screenMax = 3000;
 
+byte *selectAddress;
+byte *enterAddress;
+
+byte selectModulo = 0;
+byte enterModulo = 0;
+
 // CURSOR AND ALARM FLASHING
 byte flashState = true;
 unsigned long lastFlashMillis = 0;
@@ -263,44 +269,7 @@ void loop() {
 
         if (buttonAction == true) {
             screenReturn = 0;
-            switch (whichButton) {
-                case BUTTON_NONE:
-                    break;
-                case BUTTON_SELECT:
-                    if (selectCount < 5) {
-                        lcd.clear();
-                        selectCount = (selectCount + 1) % numScreens;
-                        
-                    }
-                    else {
-                        setupCount++;
-                    }
-                    break;
-                case BUTTON_ENTER:
-                    switch (selectCount) {
-                        case 0:
-                            backlightLevel = (backlightLevel + 1) % 3;
-                            setBack(backlightLevel);
-                        break;
-                        case 1:
-                            lcd.clear();
-                            tempAlarm = (tempAlarm + 1) % 4;  
-                        break;
-                        case 2:
-                            lcd.clear();
-                            voltAlarm = (voltAlarm + 1) % 4;
-                        break;
-                        case 3:
-                            ampHourReset = !ampHourReset;
-                        break;
-                        case 4:
-                            enterSetup = !enterSetup;
-                        break;
-                        case 5:
-                            settingButtons();   
-                        break;
-                    }  
-            }
+            buttonIncrement();
             buttonAction = false;
         }
     }
@@ -440,6 +409,13 @@ void settingButtons() {
 
 
 void mainScreen() {
+
+    selectAddress = &selectCount;
+    enterAddress = &backlightLevel;
+
+    selectModulo = numScreens;
+    enterModulo = 4;
+    
     if (ampHourReset) {
         ampHours = 0;
         ampHourReset = false;
@@ -745,6 +721,16 @@ void chargeDetect() {
 }
 
 void buttonIncrement() {
+    switch (whichButton) {
+        case BUTTON_NONE:
+        break;
+        case BUTTON_SELECT:
+            *selectAddress = (*selectAddress + 1) % selectModulo;        
+        break;
+        case BUTTON_ENTER:
+            *enterAddress = (*enterAddress + 1) % enterModulo;
+        break;
+    }
     // varAtAddress = (varAtAddress + 1) % globalModulo
 
     // varAtAddress and globalModulo are set when entering each screen

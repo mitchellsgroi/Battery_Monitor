@@ -11,6 +11,8 @@ int y = 1;
 int currentSecond = 0;
 int wasSecond = 0;
 
+int *anInt;
+
 unsigned long currentMillis = 0;
 unsigned long wasMillis = 0;
 const int delayMillis = 1000;
@@ -44,7 +46,8 @@ void loop () {
     wasSecond = currentSecond; 
 
     if ((currentMillis - wasMillis) >= delayMillis) {
-        y++;
+        anInt = &y;
+        addOne();
         lcd.setCursor(0, 1);
         lcd.print("                ");
         lcd.setCursor(0, 1);
@@ -56,3 +59,8 @@ void loop () {
 
     
 }
+
+void addOne() {
+    *anInt = *anInt + 1;
+}
+
