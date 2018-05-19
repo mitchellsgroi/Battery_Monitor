@@ -61,6 +61,30 @@ byte refresh = false;
 
 const int numReadings = 50;
 
+// ALARMS
+float tempLowAlarm = 0;
+byte tempLowSign = -1;
+byte tempLowTens = 0;
+byte tempLowOnes = 3;
+byte tempLowPoint = 5;
+
+float tempHighAlarm = 0;
+byte tempHighSign = 1;
+byte tempHighTens = 0;
+byte tempHighOnes = 4;
+byte tempHighPoint = 5;
+
+float voltLowAlarm = 0;
+byte voltLowTens = 1;
+byte voltLowOnes = 1;
+byte voltLowPoint = 9;
+
+float voltHighAlarm = 0;
+byte voltHighTens = 1;
+byte voltHighOnes = 5;
+byte voltHighPoint = 2;
+
+
 // voltage
 
 float kVolts = 0.97;
@@ -103,7 +127,10 @@ byte buttonWas = 0;
 int screenReturn = 0;
 int screenMax = 3000;
 
-
+// CURSOR AND ALARM FLASHING
+byte flashState = true;
+unsigned long lastFlashMillis = 0;
+const int flashDelay = 250;
 
 
 // settings
@@ -143,8 +170,13 @@ void setup() {
     RTC.begin();
 
     if (!RTC.isrunning()){
-        lcd.print(F("CLOCK ERROR"));
-        delay(10); 
+        lcd.print(F("RTC Resetting"));
+        delay(1000);
+        RTC.adjust(DateTime(__DATE__, __TIME__)); 
+    }
+
+    if (!RTC.isrunning()){
+        lcd.print(F("RTC ERROR"));
     }
 
     // PRINT TO LCD AS FAUX SPLASH SCREEN
@@ -173,6 +205,7 @@ void setup() {
 void loop() {
     // capture millis at the start of the loop
     currentMillis = millis();
+    doFlashing();
 
     if ((currentMillis - refreshMillis) > refreshDelay) {
         refresh = true;
@@ -414,6 +447,7 @@ void mainScreen() {
 
     enterSetup = false;
     exitSetup = false;
+    setupCount = 0;
     
     // VOLTAGE
     lcd.setCursor(0, 0);
@@ -475,10 +509,10 @@ void voltScreen() {
     lcd.setCursor(0, 1);
     switch (voltAlarm) {
         case 0:
-            lcd.print(voltLow, 1);
+            lcd.print(voltLowAlarm, 1);
             lcd.print(F("V"));
             lcd.print(" and ");
-            lcd.print(voltHigh, 1);
+            lcd.print(voltHighAlarm, 1);
             lcd.print(F("V"));
         break;
         case 1:
@@ -525,25 +559,66 @@ void setupScreen() {
     switch (setupCount) {
         case 0:
             lcd.setCursor(0, 0);
-            lcd.print("Temp Alarm High");
+            lcd.print("Temp Alarm Low");
             lcd.setCursor(0, 1);
-            lcd.print("C10.2");
+            if (tempLowSign == 1) {
+                flash("+");
+            }    
+            else {
+                flash("-");
+            }
+            lcd.print(tempLowTens);
+            lcd.print(tempLowOnes);
+            lcd.print(".");
+            lcd.print(tempLowPoint);
+            lcd.print((char)223);
+            
         break;
         case 1:
             lcd.setCursor(0, 1);
-            lcd.print("+C0.2");
+            if (tempLowSign == 1) {
+                lcd.print("+");
+            }    
+            else {
+                lcd.print("-");
+            }
+            flash(tempLowTens);
+            lcd.print(tempLowOnes);
+            lcd.print(".");
+            lcd.print(tempLowPoint);
+            lcd.print((char)223);
         break;
         case 2:
             lcd.setCursor(0, 1);
-            lcd.print("+1C.2");
+            if (tempLowSign == 1) {
+                lcd.print("+");
+            }    
+            else {
+                lcd.print("-");
+            }
+            lcd.print(tempLowTens);
+            flash(tempLowOnes);
+            lcd.print(".");
+            lcd.print(tempLowPoint);
+            lcd.print((char)223);
         break;        
         case 3:
             lcd.setCursor(0, 1);
-            lcd.print("+10.C");
+            if (tempLowSign == 1) {
+                lcd.print("+");
+            }    
+            else {
+                lcd.print("-");
+            }
+            lcd.print(tempLowTens);
+            lcd.print(tempLowOnes);
+            lcd.print(".");
+            flash(tempLowPoint);
+            lcd.print((char)223);
         break;            
         case 4:
-            lcd.setCursor(10, 0);
-            lcd.print(" Low ");
+            lcd.setCursor(11, 0);
+            lcd.print("High");
             lcd.setCursor(0, 1);
             lcd.print("C12.3");
         break;
@@ -589,10 +664,12 @@ void setupScreen() {
             exitSetupScreen();
         break;
         case 13:
+            convertAlarms();
             if (exitSetup) {
                 lcd.clear();
                 selectCount = 0;
-                setupCount = 0;
+
+
             }
 
             else {
@@ -625,6 +702,32 @@ void exitSetupScreen() {
     }
 }
 
+
+
+void doFlashing() {
+    if ((currentMillis - lastFlashMillis) > flashDelay) {
+        flashState = !flashState;
+        lastFlashMillis = currentMillis;
+    }
+}
+
+void flash(byte x) {
+    if (flashState) {
+        lcd.print(x); 
+    }
+    else {
+        lcd.print(" ");
+    }
+}
+
+void convertAlarms () {
+    voltLowAlarm = voltLowOnes + (voltLowTens * 10) + (voltLowPoint * 0.1);
+    voltHighAlarm = voltHighOnes + (voltHighTens * 10) + (voltHighPoint * 0.1);
+
+    tempLowAlarm = (tempLowOnes + (tempLowTens * 10) + (tempLowPoint * 0.1)) * tempLowSign;
+    tempHighAlarm = (tempHighOnes + (tempHighTens * 10) + (tempHighPoint * 0.1)) * tempHighSign;
+}
+
 void floatDetect() {
     // if the batteries voltage has been above 14, current has stayed very low, and the voltage is still above 13.2ish
         // then battery is floating
@@ -639,6 +742,13 @@ void chargeDetect() {
     // if charge input is high or current is in negative
         // charging is true
         // turn on the LED       
+}
+
+void buttonIncrement() {
+    // varAtAddress = (varAtAddress + 1) % globalModulo
+
+    // varAtAddress and globalModulo are set when entering each screen
+    // make function take an input of which button was pressed.
 }
 
 
