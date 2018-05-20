@@ -1,17 +1,19 @@
+
+
 /*
 ## TODO
     - Change the 15 second interval thing to variable
     - EEPROM Stuff, save the settings, read them and set defaults if no good
     - Temperature probes, can I have two?
-    - Fix Enter Setup --DONE
+    - DONE-- Fix Enter Setup --DONE
     - Make the setup screens actually work
     - Make the alarms actually work
     - Get current readings
-    - Stopwatch the AH reading for accuracy
+    - DONE-- Stopwatch the AH reading for accuracy --DONE
     - truncate the AH rather than round
     - fall back to millis if rtc is fucked
-    - add rtc status screen in setup
-    - Fix display bugs in setup screens
+    - DONE__ add rtc status screen in setup --DONE
+    - DONE-- Fix display bugs in setup screens -- DONE
 
 
 */
@@ -19,6 +21,7 @@
 #include <Wire.h>
 #include "RTClib.h"
 #include <LiquidCrystal.h>
+#include <EEPROM.h>
 
 // DEFINITIONS
 #define PROTO
@@ -31,6 +34,24 @@
 #define NORMAL 5
 #define SETUP 6
 
+#define VHAT 0
+#define VHAO 1
+#define VHAP 2
+#define VLAT 3
+#define VLAO 4
+#define VLAP 5
+
+#define THAS 6
+#define THAT 7
+#define THAO 8
+#define THAP 9
+
+#define TLAS 10
+#define TLAT 11
+#define TLAO 12
+#define TLAP 13
+
+
 
 // INITIALISE
 
@@ -42,6 +63,10 @@
 
     // VOLTAGE
     float topVolts = 5;
+
+    // BUTTON LEVELS
+    int selectVolts = 740;
+    int enterVolts = 140;
 #endif
 
 RTC_DS1307 RTC;
@@ -62,6 +87,10 @@ byte refresh = false;
 const int numReadings = 50;
 
 // ALARMS
+String tempHighString = ("Maximum Temp");
+String tempLowString = ("Minimum Temp");
+String voltHighString = ("Maximum Volts");
+String voltLowString = ("Minimum Volts");
 String plus = "+";
 String neg = "-";
 
@@ -164,10 +193,12 @@ byte ahSymbol[8] = {
   B00101,
 };
 
+String tempAlarmHeader = "Temp Alarm";
+
+
 
 #ifdef PROTO
-    int selectVolts = 740;
-    int enterVolts = 140;
+
 #endif
 
 
@@ -210,6 +241,10 @@ void setup() {
 
     // set up the alarm values
     convertAlarms();
+
+    // read persistant values from the EEPROM
+    settingsRead();
+    
     lcd.clear();
     
 }
@@ -434,6 +469,10 @@ void settingButtons() {
     }
 }
 
+void screenHeader(String title) {
+    lcd.setCursor(0, 0);
+    lcd.print(title);
+}
 
 void mainScreen() {
     
@@ -475,8 +514,7 @@ void mainScreen() {
 }
 
 void tempScreen() {
-    lcd.setCursor(0, 0);
-    lcd.print(F("Temp Alarm"));
+    screenHeader(tempAlarmHeader);
     lcd.setCursor(0, 1);
     switch (tempAlarm) {
         case 0:
@@ -501,8 +539,7 @@ void tempScreen() {
 }
 
 void voltScreen() {
-    lcd.setCursor(0, 0);
-    lcd.print(F("Voltage Alarm"));
+    screenHeader(F("Voltage Alarm"));
     lcd.setCursor(0, 1);
     switch (voltAlarm) {
         case 0:
@@ -539,16 +576,13 @@ void ampHourScreen() {
 }
 
 void enterSetupScreen() {
-    lcd.setCursor(0, 0);
-    lcd.print(F("Enter Setup?"));
+    screenHeader(F("Enter Setup?"));
     lcd.setCursor(0, 1);
     if (!enterSetup) {
-        lcd.print("No ");
-        numScreens = NORMAL;
+        lcd.print(F("No "));
     }
     else {
-        lcd.print("Yes");
-        numScreens = SETUP;
+        lcd.print(F("Yes"));
     }
 }
 
@@ -557,8 +591,7 @@ void setupScreen() {
         case 0:
             enterAddress = &tempLowSign;
             enterModulo = 2;
-            lcd.setCursor(0, 0);
-            lcd.print(F("Temp Alarm Low"));
+            screenHeader(tempLowString);
             lcd.setCursor(0, 1);
             if (tempLowSign == 1) {
                 flashString(plus);
@@ -576,8 +609,7 @@ void setupScreen() {
         case 1:
             enterAddress = &tempLowTens;
             enterModulo = 10;
-            lcd.setCursor(0, 0);
-            lcd.print(F("Temp Alarm Low"));            
+            screenHeader(tempLowString);            
             lcd.setCursor(0, 1);
             if (tempLowSign == 1) {
                 lcd.print("+");
@@ -594,8 +626,7 @@ void setupScreen() {
         case 2:
             enterAddress = &tempLowOnes;
             enterModulo = 10;
-            lcd.setCursor(0, 0);
-            lcd.print(F("Temp Alarm Low"));                    
+            screenHeader(tempLowString);                    
             lcd.setCursor(0, 1);
             if (tempLowSign == 1) {
                 lcd.print("+");
@@ -612,8 +643,7 @@ void setupScreen() {
         case 3:
             enterAddress = &tempLowPoint;
             enterModulo = 10;
-            lcd.setCursor(0, 0);
-            lcd.print(F("Temp Alarm Low"));
+            screenHeader(tempLowString);
             lcd.setCursor(0, 1);
             if (tempLowSign == 1) {
                 lcd.print("+");
@@ -630,8 +660,7 @@ void setupScreen() {
         case 4:
             enterAddress = &tempHighSign;
             enterModulo = 2;        
-            lcd.setCursor(0, 0);
-            lcd.print(F("Temp Alarm High"));
+            screenHeader(tempHighString);
             lcd.setCursor(0, 1);
             if (tempHighSign == 1) {
                 flashString(plus);
@@ -648,8 +677,7 @@ void setupScreen() {
         case 5:
             enterAddress = &tempHighTens;
             enterModulo = 10;        
-            lcd.setCursor(0, 0);
-            lcd.print(F("Temp Alarm High"));
+            screenHeader(tempHighString);
             lcd.setCursor(0, 1);
             if (tempHighSign == 1) {
                 lcd.print(plus);
@@ -666,8 +694,7 @@ void setupScreen() {
         case 6:
             enterAddress = &tempHighOnes;
             enterModulo = 10;        
-            lcd.setCursor(0, 0);
-            lcd.print(F("Temp Alarm High"));
+            screenHeader(tempHighString);
             lcd.setCursor(0, 1);
             if (tempHighSign == 1) {
                 lcd.print(plus);
@@ -684,8 +711,7 @@ void setupScreen() {
         case 7:
             enterAddress = &tempHighPoint;
             enterModulo = 10;        
-            lcd.setCursor(0, 0);
-            lcd.print(F("Temp Alarm High"));
+            screenHeader(tempHighString);
             lcd.setCursor(0, 1);
             if (tempHighSign == 1) {
                 lcd.print(plus);
@@ -700,22 +726,73 @@ void setupScreen() {
             lcd.print((char)223);
         break;
         case 8:
-            lcd.setCursor(0, 0);
-            lcd.print(F("Volt Alarm Low"));
+            enterAddress = &voltLowTens;
+            enterModulo = 3;
+            screenHeader(voltLowString);
             lcd.setCursor(0, 1);
-            lcd.print("C1.9");
+            flash(voltLowTens);
+            lcd.print(voltLowOnes);
+            lcd.print(".");
+            lcd.print(voltLowPoint);
+            lcd.print(F("V"));
         break;
         case 9:
+            enterAddress = &voltLowOnes;
+            enterModulo = 10;
+            screenHeader(voltLowString);
             lcd.setCursor(0, 1);
-            lcd.print("1C.9");
+            lcd.print(voltLowTens);
+            flash(voltLowOnes);
+            lcd.print(".");
+            lcd.print(voltLowPoint);
+            lcd.print(F("V"));
         break;
         case 10:
+            enterAddress = &voltLowPoint;
+            enterModulo = 10;
+            screenHeader(voltLowString);
             lcd.setCursor(0, 1);
-            lcd.print("11.C");
+            lcd.print(voltLowTens);
+            lcd.print(voltLowOnes);
+            lcd.print(".");
+            flash(voltLowPoint);
+            lcd.print(F("V"));
         break;
         case 11:
-            lcd.setCursor(0, 0);
-            lcd.print(F("RTC Status      "));
+            enterAddress = &voltHighTens;
+            enterModulo = 3;
+            screenHeader(voltHighString);
+            lcd.setCursor(0, 1);
+            flash(voltHighTens);
+            lcd.print(voltHighOnes);
+            lcd.print(".");
+            lcd.print(voltHighPoint);
+            lcd.print(F("V"));
+        break;
+        case 12:
+            enterAddress = &voltHighOnes;
+            enterModulo = 10;
+            screenHeader(voltHighString);
+            lcd.setCursor(0, 1);
+            lcd.print(voltHighTens);
+            flash(voltHighOnes);
+            lcd.print(".");
+            lcd.print(voltHighPoint);
+            lcd.print(F("V"));
+        break;
+        case 13:
+            enterAddress = &voltHighPoint;
+            enterModulo = 10;
+            screenHeader(voltHighString);
+            lcd.setCursor(0, 1);
+            lcd.print(voltHighTens);
+            lcd.print(voltHighOnes);
+            lcd.print(".");
+            flash(voltHighPoint);
+            lcd.print(F("V"));
+        break;        
+        case 14:
+            screenHeader(F("RTC Status"));
             if (RTC.isrunning()){
                 lcd.setCursor(0, 1);
                 lcd.print(F("OK    "));                    
@@ -725,14 +802,15 @@ void setupScreen() {
                 lcd.print(F("Error: isFucked"));
             }
         break;    
-        case 12:
+        case 15:
             exitSetupScreen();
         break;
-        case 13:
+        case 16:
             convertAlarms();
             if (exitSetup) {
                 lcd.clear();
                 // save all settings to eeprom
+                settingsWrite();
                 selectCount = 0;
 
 
@@ -744,28 +822,19 @@ void setupScreen() {
             }
     }
 }
-
-void voltSetupScreen() {
-    lcd.setCursor(0, 0);
-    lcd.print(F("Volt Alarm Limits"));
-    lcd.setCursor(0, 1);
-    lcd.print("Low:");
-    lcd.print("00.0V High: 00.0V");
     
-}
 
 void exitSetupScreen() {
     enterAddress = &exitSetup;
     enterModulo = 2;
-    lcd.setCursor(0, 0);
-    lcd.print(F("Exit Setup?"));
+    screenHeader(F("Exit Setup?"));
     lcd.setCursor(0, 1);
     switch (exitSetup) {
         case 0:
-            lcd.print("No ");
+            lcd.print(F("No "));
         break;
         case 1:
-            lcd.print("Yes");
+            lcd.print(F("Yes"));
         break;
     }
 }
@@ -818,10 +887,26 @@ void convertAlarms () {
 
 void settingsWrite(){
   // write all settings to the EEPROM for persistance
+  EEPROM.put(TEMP_ALARM_LOW, (tempLowAlarm * 10));
+  EEPROM.put(TEMP_ALARM_HIGH, (tempHighAlarm * 10));
+
+  EEPROM.put(VOLT_ALARM_LOW, (voltLowAlarm * 10));
+  EEPROM.put(VOLT_ALARM_HIGH, (voltHighAlarm * 10));
 }
 
 void settingsRead(){
   // read settings from EEPROM
+  EEPROM.get(TEMP_ALARM_LOW, tempLowAlarm);
+  tempLowAlarm /= 10;
+
+  EEPROM.get(TEMP_ALARM_HIGH, tempHighAlarm);
+  tempHighAlarm /= 10;
+
+  EEPROM.get(VOLT_ALARM_LOW, voltLowAlarm);
+  voltLowAlarm /= 10;
+
+  EEPROM.get(VOLT_ALARM_HIGH, voltHighAlarm);
+  voltHighAlarm /= 10;
   // do only once in setup
   // make sure to handle errors
 }
