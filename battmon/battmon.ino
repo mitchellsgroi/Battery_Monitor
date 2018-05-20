@@ -827,7 +827,7 @@ void setupScreen() {
 void exitSetupScreen() {
     enterAddress = &exitSetup;
     enterModulo = 2;
-    screenHeader(F("Exit Setup?"));
+    screenHeader(F("Save and Exit?"));
     lcd.setCursor(0, 1);
     switch (exitSetup) {
         case 0:
@@ -887,28 +887,31 @@ void convertAlarms () {
 
 void settingsWrite(){
   // write all settings to the EEPROM for persistance
-  EEPROM.put(TEMP_ALARM_LOW, (tempLowAlarm * 10));
-  EEPROM.put(TEMP_ALARM_HIGH, (tempHighAlarm * 10));
+  EEPROM.put(TLAS, tempLowSign);
+  EEPROM.put(TLAT, tempLowTens);
+  EEPROM.put(TLAO, tempLowOnes);
+  EEPROM.put(TLAP, tempLowPoint);
 
-  EEPROM.put(VOLT_ALARM_LOW, (voltLowAlarm * 10));
-  EEPROM.put(VOLT_ALARM_HIGH, (voltHighAlarm * 10));
+  EEPROM.put(THAS, tempHighSign);
+  EEPROM.put(THAT, tempHighTens);
+  EEPROM.put(THAO, tempHighOnes);
+  EEPROM.put(THAP, tempHighPoint);
 }
 
 void settingsRead(){
   // read settings from EEPROM
-  EEPROM.get(TEMP_ALARM_LOW, tempLowAlarm);
-  tempLowAlarm /= 10;
+  EEPROM.get(TLAS, tempLowSign);
+  EEPROM.get(TLAT, tempLowTens);
+  EEPROM.get(TLAO, tempLowOnes);
+  EEPROM.get(TLAP, tempLowPoint);
 
-  EEPROM.get(TEMP_ALARM_HIGH, tempHighAlarm);
-  tempHighAlarm /= 10;
-
-  EEPROM.get(VOLT_ALARM_LOW, voltLowAlarm);
-  voltLowAlarm /= 10;
-
-  EEPROM.get(VOLT_ALARM_HIGH, voltHighAlarm);
-  voltHighAlarm /= 10;
+  EEPROM.get(THAS, tempHighSign);
+  EEPROM.get(THAT, tempHighTens);
+  EEPROM.get(THAO, tempHighOnes);
+  EEPROM.get(THAP, tempHighPoint);
   // do only once in setup
   // make sure to handle errors
+  convertAlarms();
 }
 
 
