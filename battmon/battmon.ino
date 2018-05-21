@@ -6,14 +6,15 @@
     - EEPROM Stuff, save the settings, read them and set defaults if no good
     - Temperature probes, can I have two?
     - DONE-- Fix Enter Setup --DONE
-    - Make the setup screens actually work
+    - DONE-- Make the setup screens actually work --DONE
     - Make the alarms actually work
     - Get current readings
     - DONE-- Stopwatch the AH reading for accuracy --DONE
-    - truncate the AH rather than round
+    - DONE-- truncate the AH rather than round --DONE
     - fall back to millis if rtc is fucked
-    - DONE__ add rtc status screen in setup --DONE
+    - DONE-- add rtc status screen in setup --DONE
     - DONE-- Fix display bugs in setup screens -- DONE
+    - DONE--Put all the settings into an array of bytes --DONE
 
 
 */
@@ -34,6 +35,8 @@
 #define NORMAL 5
 #define SETUP 6
 
+#define SETTING_SIZE 20
+
 #define VHAT 0
 #define VHAO 1
 #define VHAP 2
@@ -50,6 +53,9 @@
 #define TLAT 11
 #define TLAO 12
 #define TLAP 13
+
+#define VA 14
+#define TA 15
 
 
 
@@ -94,27 +100,21 @@ String voltLowString = ("Minimum Volts");
 String plus = "+";
 String neg = "-";
 
+String no = "No";
+String yes = "Yes";
+
+byte settings[SETTING_SIZE];
+
+byte tempAlarm = 0;
 float tempLowAlarm = 0;
-byte tempLowSign = 0;
-byte tempLowTens = 0;
-byte tempLowOnes = 3;
-byte tempLowPoint = 5;
-
 float tempHighAlarm = 0;
-byte tempHighSign = 1;
-byte tempHighTens = 0;
-byte tempHighOnes = 4;
-byte tempHighPoint = 5;
+byte tempAlarming = false;
 
+byte voltAlarm = 0;
 float voltLowAlarm = 0;
-byte voltLowTens = 1;
-byte voltLowOnes = 1;
-byte voltLowPoint = 9;
-
 float voltHighAlarm = 0;
-byte voltHighTens = 1;
-byte voltHighOnes = 5;
-byte voltHighPoint = 2;
+byte voltAlarming = false;
+
 
 
 // voltage
@@ -126,10 +126,6 @@ int arrayVolts[numReadings];
 float totalVolts = 0;
 int iVolts = 0;
 
-byte voltAlarm = 0;
-float voltHigh = 15.1;
-float voltLow  = 11.8;
-
 
 
 
@@ -137,12 +133,12 @@ float voltLow  = 11.8;
 float current = 60;       // final current to be displayed
 
 // amp hours
-float ampHours = 0;     // total amp hours
+int ampHours = 0;     // total amp hours
+float ampHourFloat = 0;
 byte ampHourReset = 0;
 
 // temperature
-float temp = 2.5;       // final temperature reading to be displayed
-byte tempAlarm = 0; 
+float temp = 2.5;       // final temperature reading to be displayed 
 float tempLow = -2.5;
 float tempHigh = 3.5;
 
@@ -249,10 +245,77 @@ void setup() {
     
 }
 void loop() {
+    // Do all the millis related functions
+    checkMillis();
+    // Do all the second related functions
+    checkSecond();
+    // Check the voltage of the battery
+    batteryVoltage();
+    // Check the current in or out of the battery
+    //batteryCurrent();
+    // Count the Amp Hours
+    countAmpHours();
+    // Check the temperature
+    temperature();
+    // Trigger any alarms
+    triggerAlarm();
+    // Check if a button has been presseds
+    buttons();
+    // Print info the the LCD
+    displayScreen();
+    // Return to home screen if no activity
+    returnHome();
+    
+
+        
+
+    
+
+    
+    
+}
+
+byte checkButton(){
+
+    rawButton = analogRead(buttonPin);
+    
+    if (rawButton > (selectVolts - buttonHyst) && rawButton < (selectVolts + buttonHyst)) {
+        buttonPressed = BUTTON_SELECT;
+    }
+    else if (rawButton > (enterVolts - buttonHyst) && rawButton < (enterVolts + buttonHyst)) {
+        buttonPressed = BUTTON_ENTER;
+    }
+    else {
+        buttonPressed = BUTTON_NONE;
+    }
+
+    if (buttonWas == BUTTON_NONE && buttonPressed != BUTTON_NONE) {
+        buttonAction = true;
+    }
+
+    buttonWas = buttonPressed;
+
+    return buttonPressed;
+}
+
+void setBack() {
+    // Sets the level of the LCD backlight
+    switch (backlightLevel) {
+        case 0:
+            digitalWrite(backlightPin, HIGH);
+        break;
+        case 1:
+            analogWrite(backlightPin, 127);
+        break;
+        case 2:
+            digitalWrite(backlightPin, LOW);
+        break;
+    }
+}
+void checkMillis() {
     // capture millis at the start of the loop
     currentMillis = millis();
-    doFlashing();
-
+    
     if ((currentMillis - refreshMillis) > refreshDelay) {
         refresh = true;
         refreshMillis = currentMillis;
@@ -261,70 +324,181 @@ void loop() {
     else {
         refresh = false;
     }
+    if ((currentMillis - lastFlashMillis) > flashDelay) {
+        flashState = !flashState;
+        lastFlashMillis = currentMillis;
+    }
+}
 
-    checkSecond();
+void checkSecond() {
+//    if (!RTC.isrunning()){
+//        lcd.clear();
+//        lcd.setCursor(0, 0);
+//        lcd.print(F("CLOCK ERROR"));
+//        delay(1000);
+//    }
+    DateTime now = RTC.now();
+    currentSecond = now.second();
 
-    // VOLTAGE
+    if (currentSecond != wasSecond) {
+        secondPassed = true;
+    }
+    else {
+        secondPassed = false;
+    }
+
+    // change the magic 15 here to a variable that can be changed
+    if (((currentSecond % 15) == 0) && currentSecond != wasSecond) {
+        fifteenSecond = true;
+    }
+    else {
+        fifteenSecond = false;
+    }
+    
+    wasSecond = currentSecond;        
+}
+
+void batteryVoltage() {
+    // Take the analog input
     rawVolts = analogRead(voltPin);
-
+    // Take the old value from the total
     totalVolts -= arrayVolts[iVolts];
+    // Put the new value in the array
     arrayVolts[iVolts] = rawVolts;
+    // Add the new value to the array
     totalVolts += arrayVolts[iVolts];
+    // increment the array index
     iVolts++;
-
+    // reset the index at the end of the array
     if (iVolts >= numReadings) {
         iVolts = 0;
     }
 
-    voltage = ((totalVolts / numReadings) * (topVolts / 1023.0)) * kVolts;
+    // calculate average voltage
+    voltage = ((totalVolts / numReadings) * (topVolts / 1023.0)) * kVolts;    
+}
 
-    
-    // COUNT AMP HOURS
+void countAmpHours() {
     if (secondPassed) {
-        ampHours += current / 3600;
+        ampHourFloat += current / 3600;
 
-        if (ampHours < 0) {
-            ampHours = 0;
+        if (ampHourFloat < 0) {
+            ampHourFloat = 0;
         }
-    }
 
+    ampHours = ampHourFloat;
+    }
+}
+
+void temperature() {
     // TEMPERATURE
     if (fifteenSecond) {
         // ping the sensor(s) for the temp reading
         // just counting for now
         temp++;
+    }    
+}
+
+void triggerAlarm() {
+    switch(tempAlarm) {
+        case 0:
+            tempAlarming = false;
+        break;
+        case 1:
+            if (temp >= tempHighAlarm || temp <= tempLowAlarm) {
+                tempAlarming = true;
+            }
+            else {
+                tempAlarming = false;
+            }
+        break;
+        case 2:
+            if (temp >= tempHighAlarm) {
+                tempAlarming = true;
+            }
+            else {
+                tempAlarming = false;
+            }
+        break;    
+        case 3:
+            if (temp <= tempLowAlarm) {
+                tempAlarming = true;
+            }
+            else {
+                tempAlarming = false;
+            }
+        break;    
     }
-    
-    // run the debug function if in debug mode
-    #ifdef DEBUG
-        debug();
-    #endif
 
-    // Buttons
+    switch(voltAlarm) {
+        case 0:
+            voltAlarming = false;
+        break;
+        case 1:
+            if (voltage >= voltHighAlarm || voltage <= voltLowAlarm) {
+                voltAlarming = true;
+            }
+            else {
+                voltAlarming = false;
+            }
+        break;
+        case 2:
+            if (voltage >= voltHighAlarm) {
+                voltAlarming = true;    
+            }
+            else {
+                voltAlarming = false;
+            }
+        break;
+        case 3:
+            if (voltage <= voltLowAlarm) {
+                voltAlarming = true;
+            }
+            else {
+                voltAlarming = false;
+            }
+        break;
+    }
+}
+
+void buttons() {
+    // Check the button press wasn't a bounce
     if ((currentMillis - buttonMillis) > buttonDelay) {
-
+        // check which button it was
         whichButton = checkButton();
-
+        // reset the debounce timer
         buttonMillis = currentMillis;
-
+        // check if the button pressed should trigger an action
         if (buttonAction == true) {
+            // reset the activity timer
             screenReturn = 0;
+            // do the action that is required
             buttonIncrement();
+            // reset the action trigger
             buttonAction = false;
         }
     }
+}
 
+void returnHome() {
+    // If not on the home screen    
     if (selectCount != 0) {
+        // Increment the count
         screenReturn++;
+        // If count has reached the max value
         if (screenReturn >= screenMax) {
+            // Clear the LCD
             lcd.clear();
+            // Return to the home screen
             selectCount = 0;
+            // Reset the count
             screenReturn = 0;
         }
     }
+}
 
-
-    switch (selectCount) {
+void displayScreen() {
+        switch (selectCount) {
         case 0:
             selectAddress = &selectCount;
             enterAddress = &backlightLevel;
@@ -365,107 +539,6 @@ void loop() {
             setupScreen();
         break;
         
-    }
-    
-
-        
-
-    
-
-    
-    
-}
-
-
-
-// DEBUG CODE
-void debug() {
-    // Print the button voltages to set
-    rawButton = analogRead(buttonPin);
-    lcd.setCursor(0, 0);
-    lcd.print(rawButton);
-
-    lcd.setCursor(0, 1);
-    lcd.print("s");
-    lcd.print(selectCount);
-
-}
-
-byte checkButton(){
-
-    rawButton = analogRead(buttonPin);
-    
-    if (rawButton > (selectVolts - buttonHyst) && rawButton < (selectVolts + buttonHyst)) {
-        buttonPressed = BUTTON_SELECT;
-    }
-    else if (rawButton > (enterVolts - buttonHyst) && rawButton < (enterVolts + buttonHyst)) {
-        buttonPressed = BUTTON_ENTER;
-    }
-    else {
-        buttonPressed = BUTTON_NONE;
-    }
-
-    if (buttonWas == BUTTON_NONE && buttonPressed != BUTTON_NONE) {
-        buttonAction = true;
-    }
-
-    buttonWas = buttonPressed;
-
-    return buttonPressed;
-}
-
-void setBack() {
-    // Sets the level of the LCD backlight
-    switch (backlightLevel) {
-        case 0:
-            digitalWrite(backlightPin, HIGH);
-        break;
-        case 1:
-            analogWrite(backlightPin, 127);
-        break;
-        case 2:
-            digitalWrite(backlightPin, LOW);
-        break;
-    }
-}
-
-void checkSecond() {
-//    if (!RTC.isrunning()){
-//        lcd.clear();
-//        lcd.setCursor(0, 0);
-//        lcd.print(F("CLOCK ERROR"));
-//        delay(1000);
-//    }
-    DateTime now = RTC.now();
-    currentSecond = now.second();
-
-    if (currentSecond != wasSecond) {
-        secondPassed = true;
-    }
-    else {
-        secondPassed = false;
-    }
-
-    // change the magic 15 here to a variable that can be changed
-    if (((currentSecond % 15) == 0) && currentSecond != wasSecond) {
-        fifteenSecond = true;
-    }
-    else {
-        fifteenSecond = false;
-    }
-    
-    wasSecond = currentSecond;        
-}
-
-void settingButtons() {
-    switch (setupCount) {
-        case 0:
-            tempSetupCount = (tempSetupCount + 1) % 8;
-        break;
-        case 12:
-            lcd.clear();
-            exitSetup = !exitSetup;
-        break;
     }
 }
 
@@ -543,22 +616,21 @@ void voltScreen() {
     lcd.setCursor(0, 1);
     switch (voltAlarm) {
         case 0:
-            lcd.print(voltLowAlarm, 1);
-            lcd.print(F("V"));
-            lcd.print(" and ");
-            lcd.print(voltHighAlarm, 1);
-            lcd.print(F("V"));
+            lcd.print(F("Off"));
         break;
         case 1:
-            lcd.print(voltHigh, 1);
+            lcd.print(F("> "));
+            lcd.print(voltHighAlarm, 1);
+            lcd.print(F("V and < "));
+            lcd.print(voltLowAlarm, 1);
             lcd.print(F("V"));
+            
         break;
         case 2:
-            lcd.print(voltLow, 1);
-            lcd.print(F("V"));
+            lcd.print("high only?");
         break;
         case 3:
-            lcd.print(F("Off"));  
+            lcd.print(F("Low only?"));  
         break;          
     }
 }
@@ -568,10 +640,10 @@ void ampHourScreen() {
     lcd.print(F("Reset Amp Hours?"));
     lcd.setCursor(0, 1);
     if (!ampHourReset) {
-        lcd.print(F("No "));
+        lcd.print(no);
     }
     else {
-        lcd.print(F("Yes"));
+        lcd.print(yes);
     }
 }
 
@@ -579,223 +651,223 @@ void enterSetupScreen() {
     screenHeader(F("Enter Setup?"));
     lcd.setCursor(0, 1);
     if (!enterSetup) {
-        lcd.print(F("No "));
+        lcd.print(no);
     }
     else {
-        lcd.print(F("Yes"));
+        lcd.print(yes);
     }
 }
 
 void setupScreen() {
     switch (setupCount) {
         case 0:
-            enterAddress = &tempLowSign;
+            enterAddress = &settings[TLAS];
             enterModulo = 2;
             screenHeader(tempLowString);
             lcd.setCursor(0, 1);
-            if (tempLowSign == 1) {
+            if (settings[TLAS] == 1) {
                 flashString(plus);
             }    
             else {
                 flashString(neg);
             }
-            lcd.print(tempLowTens);
-            lcd.print(tempLowOnes);
+            lcd.print(settings[TLAT]);
+            lcd.print(settings[TLAO]);
             lcd.print(".");
-            lcd.print(tempLowPoint);
+            lcd.print(settings[TLAP]);
             lcd.print((char)223);
             
         break;
         case 1:
-            enterAddress = &tempLowTens;
+            enterAddress = &settings[TLAT];
             enterModulo = 10;
             screenHeader(tempLowString);            
             lcd.setCursor(0, 1);
-            if (tempLowSign == 1) {
+            if (settings[TLAS] == 1) {
                 lcd.print("+");
             }    
             else {
                 lcd.print("-");
             }
-            flash(tempLowTens);
-            lcd.print(tempLowOnes);
+            flash(settings[TLAT]);
+            lcd.print(settings[TLAO]);
             lcd.print(".");
-            lcd.print(tempLowPoint);
+            lcd.print(settings[TLAP]);
             lcd.print((char)223);
         break;
         case 2:
-            enterAddress = &tempLowOnes;
+            enterAddress = &settings[TLAO];
             enterModulo = 10;
             screenHeader(tempLowString);                    
             lcd.setCursor(0, 1);
-            if (tempLowSign == 1) {
+            if (settings[TLAS] == 1) {
                 lcd.print("+");
             }    
             else {
                 lcd.print("-");
             }
-            lcd.print(tempLowTens);
-            flash(tempLowOnes);
+            lcd.print(settings[TLAT]);
+            flash(settings[TLAO]);
             lcd.print(".");
-            lcd.print(tempLowPoint);
+            lcd.print(settings[TLAP]);
             lcd.print((char)223);
         break;        
         case 3:
-            enterAddress = &tempLowPoint;
+            enterAddress = &settings[TLAP];
             enterModulo = 10;
             screenHeader(tempLowString);
             lcd.setCursor(0, 1);
-            if (tempLowSign == 1) {
+            if (settings[TLAS] == 1) {
                 lcd.print("+");
             }    
             else {
                 lcd.print("-");
             }
-            lcd.print(tempLowTens);
-            lcd.print(tempLowOnes);
+            lcd.print(settings[TLAT]);
+            lcd.print(settings[TLAO]);
             lcd.print(".");
-            flash(tempLowPoint);
+            flash(settings[TLAP]);
             lcd.print((char)223);
         break;            
         case 4:
-            enterAddress = &tempHighSign;
+            enterAddress = &settings[THAS];
             enterModulo = 2;        
             screenHeader(tempHighString);
             lcd.setCursor(0, 1);
-            if (tempHighSign == 1) {
+            if (settings[THAS] == 1) {
                 flashString(plus);
             }    
             else {
                 flashString(neg);
             }
-            lcd.print(tempHighTens);
-            lcd.print(tempHighOnes);
+            lcd.print(settings[THAT]);
+            lcd.print(settings[THAO]);
             lcd.print(".");
-            lcd.print(tempHighPoint);
+            lcd.print(settings[THAP]);
             lcd.print((char)223);
         break;
         case 5:
-            enterAddress = &tempHighTens;
+            enterAddress = &settings[THAT];
             enterModulo = 10;        
             screenHeader(tempHighString);
             lcd.setCursor(0, 1);
-            if (tempHighSign == 1) {
+            if (settings[THAS] == 1) {
                 lcd.print(plus);
             }    
             else {
                 lcd.print(neg);
             }
-            flash(tempHighTens);
-            lcd.print(tempHighOnes);
+            flash(settings[THAT]);
+            lcd.print(settings[THAO]);
             lcd.print(".");
-            lcd.print(tempHighPoint);
+            lcd.print(settings[THAP]);
             lcd.print((char)223);
         break;
         case 6:
-            enterAddress = &tempHighOnes;
+            enterAddress = &settings[THAO];
             enterModulo = 10;        
             screenHeader(tempHighString);
             lcd.setCursor(0, 1);
-            if (tempHighSign == 1) {
+            if (settings[THAS] == 1) {
                 lcd.print(plus);
             }    
             else {
                 lcd.print(neg);
             }
-            lcd.print(tempHighTens);
-            flash(tempHighOnes);
+            lcd.print(settings[THAT]);
+            flash(settings[THAO]);
             lcd.print(".");
-            lcd.print(tempHighPoint);
+            lcd.print(settings[THAP]);
             lcd.print((char)223);
         break;
         case 7:
-            enterAddress = &tempHighPoint;
+            enterAddress = &settings[THAP];
             enterModulo = 10;        
             screenHeader(tempHighString);
             lcd.setCursor(0, 1);
-            if (tempHighSign == 1) {
+            if (settings[THAS] == 1) {
                 lcd.print(plus);
             }    
             else {
                 lcd.print(neg);
             }
-            lcd.print(tempHighTens);
-            lcd.print(tempHighOnes);
+            lcd.print(settings[THAT]);
+            lcd.print(settings[THAO]);
             lcd.print(".");
-            flash(tempHighPoint);
+            flash(settings[THAP]);
             lcd.print((char)223);
         break;
         case 8:
-            enterAddress = &voltLowTens;
+            enterAddress = &settings[VLAT];
             enterModulo = 3;
             screenHeader(voltLowString);
             lcd.setCursor(0, 1);
-            flash(voltLowTens);
-            lcd.print(voltLowOnes);
+            flash(settings[VLAT]);
+            lcd.print(settings[VLAO]);
             lcd.print(".");
-            lcd.print(voltLowPoint);
+            lcd.print(settings[VLAP]);
             lcd.print(F("V"));
         break;
         case 9:
-            enterAddress = &voltLowOnes;
+            enterAddress = &settings[VLAO];
             enterModulo = 10;
             screenHeader(voltLowString);
             lcd.setCursor(0, 1);
-            lcd.print(voltLowTens);
-            flash(voltLowOnes);
+            lcd.print(settings[VLAT]);
+            flash(settings[VLAO]);
             lcd.print(".");
-            lcd.print(voltLowPoint);
+            lcd.print(settings[VLAP]);
             lcd.print(F("V"));
         break;
         case 10:
-            enterAddress = &voltLowPoint;
+            enterAddress = &settings[VLAP];
             enterModulo = 10;
             screenHeader(voltLowString);
             lcd.setCursor(0, 1);
-            lcd.print(voltLowTens);
-            lcd.print(voltLowOnes);
+            lcd.print(settings[VLAT]);
+            lcd.print(settings[VLAO]);
             lcd.print(".");
-            flash(voltLowPoint);
+            flash(settings[VLAP]);
             lcd.print(F("V"));
         break;
         case 11:
-            enterAddress = &voltHighTens;
+            enterAddress = &settings[VHAT];
             enterModulo = 3;
             screenHeader(voltHighString);
             lcd.setCursor(0, 1);
-            flash(voltHighTens);
-            lcd.print(voltHighOnes);
+            flash(settings[VHAT]);
+            lcd.print(settings[VHAO]);
             lcd.print(".");
-            lcd.print(voltHighPoint);
+            lcd.print(settings[VHAP]);
             lcd.print(F("V"));
         break;
         case 12:
-            enterAddress = &voltHighOnes;
+            enterAddress = &settings[VHAO];
             enterModulo = 10;
             screenHeader(voltHighString);
             lcd.setCursor(0, 1);
-            lcd.print(voltHighTens);
-            flash(voltHighOnes);
+            lcd.print(settings[VHAT]);
+            flash(settings[VHAO]);
             lcd.print(".");
-            lcd.print(voltHighPoint);
+            lcd.print(settings[VHAP]);
             lcd.print(F("V"));
         break;
         case 13:
-            enterAddress = &voltHighPoint;
+            enterAddress = &settings[VHAP];
             enterModulo = 10;
             screenHeader(voltHighString);
             lcd.setCursor(0, 1);
-            lcd.print(voltHighTens);
-            lcd.print(voltHighOnes);
+            lcd.print(settings[VHAT]);
+            lcd.print(settings[VHAO]);
             lcd.print(".");
-            flash(voltHighPoint);
+            flash(settings[VHAP]);
             lcd.print(F("V"));
         break;        
         case 14:
             screenHeader(F("RTC Status"));
             if (RTC.isrunning()){
                 lcd.setCursor(0, 1);
-                lcd.print(F("OK    "));                    
+                lcd.print(F("OK"));                    
             }
             else {
                 lcd.setCursor(0, 1);
@@ -831,20 +903,11 @@ void exitSetupScreen() {
     lcd.setCursor(0, 1);
     switch (exitSetup) {
         case 0:
-            lcd.print(F("No "));
+            lcd.print(no);
         break;
         case 1:
-            lcd.print(F("Yes"));
+            lcd.print(yes);
         break;
-    }
-}
-
-
-
-void doFlashing() {
-    if ((currentMillis - lastFlashMillis) > flashDelay) {
-        flashState = !flashState;
-        lastFlashMillis = currentMillis;
     }
 }
 
@@ -870,47 +933,35 @@ void flashString(String s) {
 }
 
 void convertAlarms () {
-    voltLowAlarm = voltLowOnes + (voltLowTens * 10) + (voltLowPoint * 0.1);
-    voltHighAlarm = voltHighOnes + (voltHighTens * 10) + (voltHighPoint * 0.1);
+    voltLowAlarm = settings[VLAO] + (settings[VLAT] * 10) + (settings[VLAP] * 0.1);
+    voltHighAlarm = settings[VHAO] + (settings[VHAT] * 10) + (settings[VHAP] * 0.1);
 
-    tempLowAlarm = tempLowOnes + (tempLowTens * 10) + (tempLowPoint * 0.1);
-    tempHighAlarm = tempHighOnes + (tempHighTens * 10) + (tempHighPoint * 0.1);
+    tempLowAlarm = settings[TLAO] + (settings[TLAT] * 10) + (settings[TLAP] * 0.1);
+    tempHighAlarm = settings[THAO] + (settings[THAT] * 10) + (settings[THAP] * 0.1);
 
-    if (!tempLowSign){
+    if (!settings[TLAS]){
       tempLowAlarm = tempLowAlarm * -1;
     }
 
-    if (!tempHighSign) {
+    if (!settings[THAS]) {
       tempHighAlarm = tempHighAlarm * -1;
     }
 }
 
 void settingsWrite(){
   // write all settings to the EEPROM for persistance
-  EEPROM.put(TLAS, tempLowSign);
-  EEPROM.put(TLAT, tempLowTens);
-  EEPROM.put(TLAO, tempLowOnes);
-  EEPROM.put(TLAP, tempLowPoint);
-
-  EEPROM.put(THAS, tempHighSign);
-  EEPROM.put(THAT, tempHighTens);
-  EEPROM.put(THAO, tempHighOnes);
-  EEPROM.put(THAP, tempHighPoint);
+    for (int i = 0; i < SETTING_SIZE; i++) {
+        EEPROM.put(i, settings[i]);
+    }
 }
 
 void settingsRead(){
-  // read settings from EEPROM
-  EEPROM.get(TLAS, tempLowSign);
-  EEPROM.get(TLAT, tempLowTens);
-  EEPROM.get(TLAO, tempLowOnes);
-  EEPROM.get(TLAP, tempLowPoint);
-
-  EEPROM.get(THAS, tempHighSign);
-  EEPROM.get(THAT, tempHighTens);
-  EEPROM.get(THAO, tempHighOnes);
-  EEPROM.get(THAP, tempHighPoint);
-  // do only once in setup
-  // make sure to handle errors
+    // read settings from EEPROM
+    for (int i = 0; i < SETTING_SIZE; i++) {
+    EEPROM.get(i, settings[i]);
+    }
+    // do only once in setup
+    // make sure to handle errors
   convertAlarms();
 }
 
@@ -942,9 +993,11 @@ void buttonIncrement() {
         break;
         case BUTTON_ENTER:
             *enterAddress = (*enterAddress + 1) % enterModulo;
-            lcd.clear();
             if (enterAddress == &backlightLevel){
                 setBack();
+            }
+            else {
+                lcd.clear();
             }
         break;
     }
