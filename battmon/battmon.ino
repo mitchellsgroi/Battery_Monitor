@@ -400,7 +400,7 @@ void temperature() {
 }
 
 void triggerAlarm() {
-    switch(tempAlarm) {
+    switch(settings[TA]) {
         case 0:
             tempAlarming = false;
         break;
@@ -430,7 +430,7 @@ void triggerAlarm() {
         break;    
     }
 
-    switch(voltAlarm) {
+    switch(settings[VA]) {
         case 0:
             voltAlarming = false;
         break;
@@ -507,12 +507,12 @@ void displayScreen() {
             mainScreen();
         break;
         case 1:
-            enterAddress = &tempAlarm;
+            enterAddress = &settings[TA];
             enterModulo = 4;
             tempScreen();
         break;
         case 2:
-            enterAddress = &voltAlarm;
+            enterAddress = &settings[VA];
             enterModulo = 4;
             voltScreen();
         break;
@@ -531,6 +531,7 @@ void displayScreen() {
                 selectCount++;
             }
             else {
+                settingsWrite();
                 selectCount = 0;
             }
         break;
@@ -560,7 +561,13 @@ void mainScreen() {
     
     // VOLTAGE
     lcd.setCursor(0, 0);
-    lcd.print(F("V:"));
+    if (voltAlarming) {
+        flashString(F("V:"));
+    }
+    else {
+        lcd.print(F("V:"));
+    }
+    
     if (refresh) {
         lcd.print(voltage, 1);
     }
@@ -574,7 +581,13 @@ void mainScreen() {
 
     // TEMPERATURE
     lcd.setCursor(8, 0);
-    lcd.print(F("T:"));
+    if (tempAlarming) {
+        flashString(F("T:"));
+    }
+    else {
+        lcd.print(F("T:"));
+    }
+    
     if (refresh) {
         lcd.print(temp, 1);
     }
@@ -589,48 +602,54 @@ void mainScreen() {
 void tempScreen() {
     screenHeader(tempAlarmHeader);
     lcd.setCursor(0, 1);
-    switch (tempAlarm) {
+    switch (settings[TA]) {
         case 0:
+            lcd.print(F("Off"));  
+        break;         
+        case 1:
+            lcd.print(F("<"));
             lcd.print(tempLowAlarm, 1);
             lcd.print((char)223);
-            lcd.print(" and ");
-            lcd.print(tempHighAlarm, 1);
-            lcd.print((char)223);
-        break;
-        case 1:
+            lcd.print(" and >");
             lcd.print(tempHighAlarm, 1);
             lcd.print((char)223);
         break;
         case 2:
-            lcd.print(tempLowAlarm, 1);
+            lcd.print(F(">"));
+            lcd.print(tempHighAlarm, 1);
             lcd.print((char)223);
         break;
         case 3:
-            lcd.print(F("Off"));  
-        break;          
+            lcd.print(F("<"));
+            lcd.print(tempLowAlarm, 1);
+            lcd.print((char)223);
+        break;
+         
     }
 }
 
 void voltScreen() {
     screenHeader(F("Voltage Alarm"));
     lcd.setCursor(0, 1);
-    switch (voltAlarm) {
+    switch (settings[VA]) {
         case 0:
             lcd.print(F("Off"));
         break;
         case 1:
-            lcd.print(F("> "));
+            lcd.print(F(">"));
             lcd.print(voltHighAlarm, 1);
-            lcd.print(F("V and < "));
+            lcd.print(F("V & <"));
             lcd.print(voltLowAlarm, 1);
             lcd.print(F("V"));
             
         break;
         case 2:
-            lcd.print("high only?");
+            lcd.print(F(">"));
+            lcd.print(voltHighAlarm, 1);
         break;
         case 3:
-            lcd.print(F("Low only?"));  
+            lcd.print(F("<"));
+            lcd.print(voltLowAlarm, 1);  
         break;          
     }
 }
