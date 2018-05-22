@@ -37,8 +37,8 @@
 
 #define SETTING_SIZE 20
 
-#define VHAT 0
-#define VHAO 1
+#define VHAT 0  // Volt High Alarm Tens
+#define VHAO 1  // Volt High Alarm Ones 
 #define VHAP 2
 #define VLAT 3
 #define VLAO 4
@@ -57,6 +57,8 @@
 #define VA 14
 #define TA 15
 
+#define WA 16   // Which Alarm 
+
 
 
 // INITIALISE
@@ -66,6 +68,8 @@
     const int backlightPin = 3;
     const int buttonPin = A0;
     const int voltPin = A3;
+    const int ledPin = 12;
+    const int buzzerPin = 13;
 
     // VOLTAGE
     float topVolts = 5;
@@ -114,6 +118,9 @@ byte voltAlarm = 0;
 float voltLowAlarm = 0;
 float voltHighAlarm = 0;
 byte voltAlarming = false;
+
+int alarmCount = 0;
+int alarmMax = 2000;
 
 
 
@@ -223,12 +230,16 @@ void setup() {
 
     // PIN THE TAIL ON THE DONKY
     pinMode(backlightPin, OUTPUT);
+    pinMode(ledPin, OUTPUT);
+    pinMode(buzzerPin, OUTPUT);
 
     pinMode(buttonPin, INPUT);
     pinMode(voltPin, INPUT);
 
     digitalWrite(backlightPin, HIGH);
     digitalWrite(voltPin, LOW);
+    digitalWrite(ledPin, LOW);
+    digitalWrite(buzzerPin, LOW);
 
     // CLEAR AVERAGING ARRAYS
     for (int i = 0; i < numReadings; i++) {
@@ -260,12 +271,16 @@ void loop() {
     // Trigger any alarms
     triggerAlarm();
     // Check if a button has been presseds
+    soundAlarm();
     buttons();
     // Print info the the LCD
     displayScreen();
     // Return to home screen if no activity
     returnHome();
-    
+
+
+    // experimenting
+    //flashLed();
 
         
 
@@ -407,6 +422,7 @@ void triggerAlarm() {
         case 1:
             if (temp >= tempHighAlarm || temp <= tempLowAlarm) {
                 tempAlarming = true;
+                alarmCount = alarmMax;
             }
             else {
                 tempAlarming = false;
@@ -415,6 +431,7 @@ void triggerAlarm() {
         case 2:
             if (temp >= tempHighAlarm) {
                 tempAlarming = true;
+                alarmCount = alarmMax;
             }
             else {
                 tempAlarming = false;
@@ -423,11 +440,12 @@ void triggerAlarm() {
         case 3:
             if (temp <= tempLowAlarm) {
                 tempAlarming = true;
+                alarmCount = alarmMax;
             }
             else {
                 tempAlarming = false;
             }
-        break;    
+        break;
     }
 
     switch(settings[VA]) {
@@ -437,6 +455,7 @@ void triggerAlarm() {
         case 1:
             if (voltage >= voltHighAlarm || voltage <= voltLowAlarm) {
                 voltAlarming = true;
+                alarmCount = alarmMax;
             }
             else {
                 voltAlarming = false;
@@ -444,7 +463,8 @@ void triggerAlarm() {
         break;
         case 2:
             if (voltage >= voltHighAlarm) {
-                voltAlarming = true;    
+                voltAlarming = true;
+                alarmCount = alarmMax;    
             }
             else {
                 voltAlarming = false;
@@ -453,12 +473,45 @@ void triggerAlarm() {
         case 3:
             if (voltage <= voltLowAlarm) {
                 voltAlarming = true;
+                alarmCount = alarmMax;
             }
             else {
                 voltAlarming = false;
             }
         break;
     }
+
+    if ((!voltAlarming || !tempAlarming) && alarmCount > 0) {
+        alarmCount-- ;
+    }
+}
+
+void soundAlarm() {
+    if (voltAlarming || tempAlarming || alarmCount) {
+        switch (settings[WA]) {
+            case 0:
+             digitalWrite(ledPin, LOW);
+             digitalWrite(buzzerPin, LOW);
+            break;
+            case 1:
+                flashLed();
+                flashBuzzer();
+            break;
+            case 2:
+                flashLed();
+                digitalWrite(buzzerPin, LOW);
+            break;
+            case 3:
+                flashBuzzer();
+                digitalWrite(ledPin, LOW);
+            break;
+        }
+    }
+    else {
+        digitalWrite(ledPin, LOW);
+        digitalWrite(buzzerPin, LOW);
+    }
+    
 }
 
 void buttons() {
@@ -517,16 +570,21 @@ void displayScreen() {
             voltScreen();
         break;
         case 3:
+            enterAddress = &settings[WA];
+            enterModulo = 4;
+            alarmScreen();
+        break;
+        case 4:
             enterAddress = &ampHourReset;
             enterModulo = 2;
             ampHourScreen();
         break;
-        case 4:
+        case 5:
             enterAddress = &enterSetup;
             enterModulo = 2;
             enterSetupScreen();
         break;
-        case 5:
+        case 6:
             if (enterSetup) {
                 selectCount++;
             }
@@ -535,7 +593,7 @@ void displayScreen() {
                 selectCount = 0;
             }
         break;
-        case 6:
+        case 7:
             selectAddress = &setupCount;
             setupScreen();
         break;
@@ -654,9 +712,27 @@ void voltScreen() {
     }
 }
 
+void alarmScreen() {
+    screenHeader(F("Which Alarm?"));
+    lcd.setCursor(0, 1);
+    switch (settings[WA]) {
+        case 0:
+            lcd.print(F("Off"));
+        break;
+        case 1:
+            lcd.print(F("LED & Buzzer"));
+        break;
+        case 2:
+            lcd.print(F("LED Only"));
+        break;
+        case 3:
+            lcd.print(F("Buzzer Only"));
+        break;
+    }
+}
+
 void ampHourScreen() {
-    lcd.setCursor(0, 0);
-    lcd.print(F("Reset Amp Hours?"));
+    screenHeader(F("Reset Amp Hours?"));
     lcd.setCursor(0, 1);
     if (!ampHourReset) {
         lcd.print(no);
@@ -1024,6 +1100,24 @@ void buttonIncrement() {
 
     // varAtAddress and globalModulo are set when entering each screen
     // make function take an input of which button was pressed.
+}
+
+void flashLed() {
+    if (flashState) {
+        digitalWrite(ledPin, HIGH);
+    }
+    else {
+        digitalWrite(ledPin, LOW);
+    }
+}
+
+void flashBuzzer() {
+    if (flashState) {
+        digitalWrite(buzzerPin, HIGH);
+    }
+    else {
+        digitalWrite(buzzerPin, LOW);
+    }
 }
 
 
