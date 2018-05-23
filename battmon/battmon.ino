@@ -2,19 +2,26 @@
 
 /*
 ## TODO
-    - Change the 15 second interval thing to variable
-    - EEPROM Stuff, save the settings, read them and set defaults if no good
+    - DONE-- Change the 15 second interval thing to variable --DONE
+    - DONE-- EEPROM Stuff, save the settings, read them and set defaults if no good --DONE
     - Temperature probes, can I have two?
     - DONE-- Fix Enter Setup --DONE
     - DONE-- Make the setup screens actually work --DONE
-    - Make the alarms actually work
-    - Get current readings
+    - DONE-- Make the alarms actually work --DONE
+    - DONE-- Get current readings --DONE
     - DONE-- Stopwatch the AH reading for accuracy --DONE
     - DONE-- truncate the AH rather than round --DONE
-    - fall back to millis if rtc is fucked
+    - DONE-- fall back to millis if rtc is fucked --DONE
     - DONE-- add rtc status screen in setup --DONE
     - DONE-- Fix display bugs in setup screens -- DONE
     - DONE--Put all the settings into an array of bytes --DONE
+    - DONE-- Handle wrong settings --DONE
+    - Comment everything
+    - write float detection
+    - Write charge detection current & charge signal
+    - Write battery capacity tester.
+    - Make work on old PCB
+    - Make work on new PCB
 
 
 */
@@ -23,6 +30,8 @@
 #include "RTClib.h"
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 // DEFINITIONS
 #define PROTO
@@ -59,17 +68,25 @@
 
 #define WA 16   // Which Alarm 
 
-
+#define ONE_WIRE_BUS 11
 
 // INITIALISE
 
 #ifdef PROTO
+    // Temp data wire is on digital pin 10
+    
+    
     LiquidCrystal lcd(8,9,4,5,6,7);
     const int backlightPin = 3;
     const int buttonPin = A0;
     const int voltPin = A3;
     const int ledPin = 12;
     const int buzzerPin = 13;
+    const int tempPin = 10;
+
+    const int currentVrefPin = A1;
+    const int currentVoutPin = A2;
+
 
     // VOLTAGE
     float topVolts = 5;
@@ -81,6 +98,9 @@
 
 RTC_DS1307 RTC;
 
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
 // VARIABLES
 
 // RTC and Timing
@@ -88,6 +108,8 @@ int currentSecond = 0;  // reading the seconds from the RTC
 int wasSecond = 0;      // to compare seconds to the last loop
 byte secondPassed = false;
 byte fifteenSecond = false;
+byte fifteenSecondCount = 0;
+byte fifteenSecondMax = 15;
 
 unsigned long currentMillis = 0;  // millis for each loop for delays
 unsigned long refreshMillis = 0;
@@ -122,7 +144,17 @@ byte voltAlarming = false;
 int alarmCount = 0;
 int alarmMax = 2000;
 
-
+// current
+int vRefRaw = 0;
+int vOutRaw = 0;
+//float vRef = 0;
+//float vOut = 0;
+int thisCurrent = 0;
+int totalCurrent = 0;
+int arrayCurrent[numReadings];
+int iCurrent = 0;
+float kCurrent = 0.15;
+float current = 0;       // final current to be displayed
 
 // voltage
 
@@ -134,10 +166,11 @@ float totalVolts = 0;
 int iVolts = 0;
 
 
+// Battery Testing
+byte batteryTest = 0;
+byte startTest = 0;
+byte isTesting = 0;
 
-
-// current
-float current = 60;       // final current to be displayed
 
 // amp hours
 int ampHours = 0;     // total amp hours
@@ -211,40 +244,54 @@ void setup() {
     lcd.begin(16,2);
     Wire.begin();
     RTC.begin();
+    sensors.begin();
 
     if (!RTC.isrunning()){
+        lcd.clear();
         lcd.print(F("RTC Resetting"));
-        delay(1000);
+        delay(200);
         RTC.adjust(DateTime(__DATE__, __TIME__)); 
     }
 
     if (!RTC.isrunning()){
+        lcd.clear();
         lcd.print(F("RTC ERROR"));
+        delay(2000);
     }
 
     // PRINT TO LCD AS FAUX SPLASH SCREEN
+    lcd.clear();
     lcd.print(F("  The Battery   "));
     lcd.setCursor(0, 1);
     lcd.print(F("    Monitor     "));
-    delay(10);
+    delay(300);
 
     // PIN THE TAIL ON THE DONKY
     pinMode(backlightPin, OUTPUT);
     pinMode(ledPin, OUTPUT);
     pinMode(buzzerPin, OUTPUT);
-
+    
     pinMode(buttonPin, INPUT);
     pinMode(voltPin, INPUT);
+    pinMode(currentVrefPin, INPUT);
+    pinMode(currentVoutPin, INPUT);
+    
 
     digitalWrite(backlightPin, HIGH);
-    digitalWrite(voltPin, LOW);
     digitalWrite(ledPin, LOW);
     digitalWrite(buzzerPin, LOW);
+
 
     // CLEAR AVERAGING ARRAYS
     for (int i = 0; i < numReadings; i++) {
         arrayVolts[i] = 0;
+        arrayCurrent[i] = 0;
     }
+
+    // Read the temps sensor on startup
+    sensors.requestTemperatures();
+    // ping the sensor(s) for the temp reading
+    temp = sensors.getTempCByIndex(0);
 
     // set up the alarm values
     convertAlarms();
@@ -263,11 +310,9 @@ void loop() {
     // Check the voltage of the battery
     batteryVoltage();
     // Check the current in or out of the battery
-    //batteryCurrent();
+    batteryCurrent();
     // Count the Amp Hours
     countAmpHours();
-    // Check the temperature
-    temperature();
     // Trigger any alarms
     triggerAlarm();
     // Check if a button has been presseds
@@ -277,6 +322,8 @@ void loop() {
     displayScreen();
     // Return to home screen if no activity
     returnHome();
+    // Check the temperature
+    temperature();
 
 
     // experimenting
@@ -346,31 +393,42 @@ void checkMillis() {
 }
 
 void checkSecond() {
-//    if (!RTC.isrunning()){
-//        lcd.clear();
-//        lcd.setCursor(0, 0);
-//        lcd.print(F("CLOCK ERROR"));
-//        delay(1000);
-//    }
-    DateTime now = RTC.now();
-    currentSecond = now.second();
+    if (RTC.isrunning()){
 
-    if (currentSecond != wasSecond) {
-        secondPassed = true;
-    }
-    else {
-        secondPassed = false;
-    }
-
-    // change the magic 15 here to a variable that can be changed
-    if (((currentSecond % 15) == 0) && currentSecond != wasSecond) {
-        fifteenSecond = true;
-    }
-    else {
-        fifteenSecond = false;
-    }
+        DateTime now = RTC.now();
+        currentSecond = now.second();
     
-    wasSecond = currentSecond;        
+        if (currentSecond != wasSecond) {
+            secondPassed = true;
+        }
+        else {
+            secondPassed = false;
+        }
+    
+        // change the magic 15 here to a variable that can be changed
+        if (((currentSecond % fifteenSecondMax) == 0) && currentSecond != wasSecond) {
+            fifteenSecond = true;
+        }
+        else {
+            fifteenSecond = false;
+        }
+        
+        wasSecond = currentSecond;
+    }
+    else {
+         if (refresh) {
+            secondPassed = true;
+            if (fifteenSecondCount >= fifteenSecondMax) {
+                fifteenSecond = true;
+                fifteenSecondCount = 0;
+            }
+            fifteenSecondCount++;       
+         }
+         else {
+            secondPassed = false;
+            fifteenSecond = false;
+         }
+    }
 }
 
 void batteryVoltage() {
@@ -393,6 +451,41 @@ void batteryVoltage() {
     voltage = ((totalVolts / numReadings) * (topVolts / 1023.0)) * kVolts;    
 }
 
+
+
+void batteryCurrent() {
+    
+    vRefRaw = analogRead(currentVrefPin);
+    vOutRaw = analogRead(currentVoutPin);
+
+    
+    
+
+    thisCurrent = 160 * (vOutRaw - vRefRaw);
+
+    // take the old value from the total
+    totalCurrent -= arrayCurrent[iCurrent];
+    // Insert the new value
+    arrayCurrent[iCurrent] = thisCurrent;
+    // Add this new value to the total
+    totalCurrent += arrayCurrent[iCurrent];
+    // Go to next index
+    iCurrent++;
+    // Reset index if at the end of array
+    if (iCurrent >= numReadings) {
+        iCurrent = 0;
+    }
+
+    // calculate the average
+    current = ((totalCurrent / numReadings) * (5.0 / 1023.0)) + kCurrent;
+
+    if (current < 0.11 && current > -0.11) {
+        current = 0;
+    }
+    
+    
+}
+
 void countAmpHours() {
     if (secondPassed) {
         ampHourFloat += current / 3600;
@@ -407,10 +500,12 @@ void countAmpHours() {
 
 void temperature() {
     // TEMPERATURE
-    if (fifteenSecond) {
+    if (fifteenSecond && !selectCount && !batteryTest) {
+        sensors.requestTemperaturesByIndex(0);
         // ping the sensor(s) for the temp reading
+        temp = sensors.getTempCByIndex(0);
         // just counting for now
-        temp++;
+//        temp++;
     }    
 }
 
@@ -553,11 +648,19 @@ void returnHome() {
 void displayScreen() {
         switch (selectCount) {
         case 0:
+            if (!batteryTest) {
+                enterAddress = &backlightLevel;
+                enterModulo = 3;
+                mainScreen();
+            }
+            else {
+                enterAddress = &startTest;
+                enterModulo = 2;
+                testingScreen();
+            }
             selectAddress = &selectCount;
-            enterAddress = &backlightLevel;
             selectModulo = 100;
-            enterModulo = 3;
-            mainScreen();
+            
         break;
         case 1:
             enterAddress = &settings[TA];
@@ -616,6 +719,9 @@ void mainScreen() {
     enterSetup = false;
     exitSetup = false;
     setupCount = 0;
+    if (refresh) {
+        lcd.clear();
+    }
     
     // VOLTAGE
     lcd.setCursor(0, 0);
@@ -635,6 +741,7 @@ void mainScreen() {
     lcd.print(F("A:"));
     if (refresh) {
         lcd.print(current, 1);
+        //lcd.print(vRef, 1);
     }
 
     // TEMPERATURE
@@ -957,8 +1064,11 @@ void setupScreen() {
             lcd.print(".");
             flash(settings[VHAP]);
             lcd.print(F("V"));
-        break;        
+        break;
         case 14:
+            testBatteryScreen();
+        break;            
+        case 15:
             screenHeader(F("RTC Status"));
             if (RTC.isrunning()){
                 lcd.setCursor(0, 1);
@@ -969,11 +1079,12 @@ void setupScreen() {
                 lcd.print(F("Error: isFucked"));
             }
         break;    
-        case 15:
+        case 16:
             exitSetupScreen();
         break;
-        case 16:
+        case 17:
             convertAlarms();
+            checkSettings();
             if (exitSetup) {
                 lcd.clear();
                 // save all settings to eeprom
@@ -988,6 +1099,81 @@ void setupScreen() {
                 setupCount = 0;
             }
     }
+}
+
+
+
+void testBatteryScreen() {
+    enterAddress = &batteryTest;
+    enterModulo = 2;
+    screenHeader(F("Test Battery?"));
+    lcd.setCursor(0, 1);
+    if (batteryTest) {
+        lcd.print(yes);
+        ampHourReset = true;
+    }
+    else {
+        lcd.print(no);
+    }
+    
+}
+
+void testingScreen() {
+    if (ampHourReset) {
+        ampHours = 0;
+        ampHourReset = false;
+    }
+
+    enterSetup = false;
+    exitSetup = false;
+    setupCount = 0;
+    if (refresh) {
+        lcd.clear();
+    }
+    
+    // VOLTAGE
+    lcd.setCursor(0, 0);
+    if (voltAlarming) {
+        flashString(F("V:"));
+    }
+    else {
+        lcd.print(F("V:"));
+    }
+    
+    if (refresh) {
+        lcd.print(voltage, 1);
+    }
+
+    // CURRENT
+    lcd.setCursor(8, 0);
+    lcd.print(F("A:"));
+    if (refresh) {
+        lcd.print(current, 1);
+        //lcd.print(vRef, 1);
+    }
+
+        // AMP HOURS
+    lcd.setCursor(0, 1);
+    lcd.write(byte(2));
+    lcd.print(F(":"));
+    lcd.print(ampHourFloat, 1);
+
+    lcd.setCursor(8, 1);
+    switch(startTest) {
+        case 0:
+            if(isTesting) {
+                lcd.print(F("Pause"));
+            }
+            else {
+                lcd.print(F("Ready"));
+            }
+        break;
+        case 1:
+            lcd.print("Testing");
+        break;
+    }
+
+    
 }
     
 
@@ -1117,6 +1303,16 @@ void flashBuzzer() {
     }
     else {
         digitalWrite(buzzerPin, LOW);
+    }
+}
+
+void checkSettings() {
+    if (tempLowAlarm >= tempHighAlarm || voltLowAlarm >= voltHighAlarm) {
+        lcd.clear();
+        screenHeader(F("SETTINGS ERROR"));
+        delay(1000);
+        lcd.clear();
+        exitSetup = false;
     }
 }
 
