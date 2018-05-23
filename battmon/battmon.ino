@@ -36,6 +36,7 @@
 // DEFINITIONS
 #define PROTO
 //#define DEBUG
+#define TESTING
 
 #define BUTTON_NONE     0
 #define BUTTON_ENTER    1
@@ -68,13 +69,13 @@
 
 #define WA 16   // Which Alarm 
 
-#define ONE_WIRE_BUS 11
+
 
 // INITIALISE
 
 #ifdef PROTO
-    // Temp data wire is on digital pin 10
     
+    #define ONE_WIRE_BUS 11
     
     LiquidCrystal lcd(8,9,4,5,6,7);
     const int backlightPin = 3;
@@ -308,9 +309,16 @@ void loop() {
     // Do all the second related functions
     checkSecond();
     // Check the voltage of the battery
-    batteryVoltage();
+    batteryVoltage();  
     // Check the current in or out of the battery
     batteryCurrent();
+    // Check the temperature
+    temperature();
+    #ifdef TESTING
+        voltage = 12.0;
+        current = 60.0;
+        temp = 3.5;
+    #endif      
     // Count the Amp Hours
     countAmpHours();
     // Trigger any alarms
@@ -321,20 +329,7 @@ void loop() {
     // Print info the the LCD
     displayScreen();
     // Return to home screen if no activity
-    returnHome();
-    // Check the temperature
-    temperature();
-
-
-    // experimenting
-    //flashLed();
-
-        
-
-    
-
-    
-    
+    returnHome();   
 }
 
 byte checkButton(){
@@ -656,7 +651,7 @@ void displayScreen() {
             else {
                 enterAddress = &startTest;
                 enterModulo = 2;
-                testingScreen();
+                testerScreen();
             }
             selectAddress = &selectCount;
             selectModulo = 100;
@@ -1066,7 +1061,7 @@ void setupScreen() {
             lcd.print(F("V"));
         break;
         case 14:
-            testBatteryScreen();
+            testerSettingScreen();
         break;            
         case 15:
             screenHeader(F("RTC Status"));
@@ -1103,7 +1098,7 @@ void setupScreen() {
 
 
 
-void testBatteryScreen() {
+void testerSettingScreen() {
     enterAddress = &batteryTest;
     enterModulo = 2;
     screenHeader(F("Test Battery?"));
@@ -1118,7 +1113,7 @@ void testBatteryScreen() {
     
 }
 
-void testingScreen() {
+void testerScreen() {
     if (ampHourReset) {
         ampHours = 0;
         ampHourReset = false;
@@ -1158,6 +1153,7 @@ void testingScreen() {
     lcd.print(F(":"));
     lcd.print(ampHourFloat, 1);
 
+    // INFORMATION
     lcd.setCursor(8, 1);
     switch(startTest) {
         case 0:
@@ -1174,6 +1170,21 @@ void testingScreen() {
     }
 
     
+}
+
+void batteryTester() {
+    // when press button to start test
+        // SSR triggers starting the test
+        // isTesting becomes true
+
+    // when press the button again
+        // SSR opens pausing the test
+
+    // when the voltage reaches the low level
+        // SSR Closes
+        // Amp Hours saved to testResult
+        // testResult save to EEPROM
+        
 }
     
 
