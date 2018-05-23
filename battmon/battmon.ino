@@ -19,9 +19,10 @@
     - Comment everything
     - write float detection
     - Write charge detection current & charge signal
-    - Write battery capacity tester.
+    - Done-- Write battery capacity tester --Done
     - Make work on old PCB
     - Make work on new PCB
+    - Address amp hour reset bug in capacity tester
 
 
 */
@@ -35,8 +36,8 @@
 
 // DEFINITIONS
 #define PROTO
-//#define DEBUG
-#define TESTING
+#define DEBUG
+//#define TESTING
 
 #define BUTTON_NONE     0
 #define BUTTON_ENTER    1
@@ -83,7 +84,7 @@
     const int voltPin = A3;
     const int ledPin = 12;
     const int buzzerPin = 13;
-    const int tempPin = 10;
+    const int relayPin = 10;
 
     const int currentVrefPin = A1;
     const int currentVoutPin = A2;
@@ -169,8 +170,11 @@ int iVolts = 0;
 
 // Battery Testing
 byte batteryTest = 0;
-byte startTest = 0;
+byte startTesting = 0;
 byte isTesting = 0;
+byte doneTesting = true;
+float testResult = 0;
+bool relayOn = false;
 
 
 // amp hours
@@ -271,6 +275,7 @@ void setup() {
     pinMode(backlightPin, OUTPUT);
     pinMode(ledPin, OUTPUT);
     pinMode(buzzerPin, OUTPUT);
+    pinMode(relayPin, OUTPUT);
     
     pinMode(buttonPin, INPUT);
     pinMode(voltPin, INPUT);
@@ -281,6 +286,7 @@ void setup() {
     digitalWrite(backlightPin, HIGH);
     digitalWrite(ledPin, LOW);
     digitalWrite(buzzerPin, LOW);
+    digitalWrite(relayPin, LOW);
 
 
     // CLEAR AVERAGING ARRAYS
@@ -649,8 +655,9 @@ void displayScreen() {
                 mainScreen();
             }
             else {
-                enterAddress = &startTest;
+                enterAddress = &startTesting;
                 enterModulo = 2;
+                batteryTester();
                 testerScreen();
             }
             selectAddress = &selectCount;
@@ -683,6 +690,9 @@ void displayScreen() {
             enterSetupScreen();
         break;
         case 6:
+            if (doneTesting) {
+                batteryTest = 0;
+            }
             if (enterSetup) {
                 selectCount++;
             }
@@ -1105,11 +1115,18 @@ void testerSettingScreen() {
     lcd.setCursor(0, 1);
     if (batteryTest) {
         lcd.print(yes);
-        ampHourReset = true;
+        ampHourReset = true; // this may cause issues if menu is entered during test
+        doneTesting = false;
     }
     else {
         lcd.print(no);
+        ampHourReset = false;
+        doneTesting = true;
     }
+
+    lcd.setCursor(7, 1);
+    lcd.print(testResult);
+    lcd.print("AH");
     
 }
 
@@ -1155,38 +1172,76 @@ void testerScreen() {
 
     // INFORMATION
     lcd.setCursor(8, 1);
-    switch(startTest) {
+    switch(startTesting) {
         case 0:
             if(isTesting) {
-                lcd.print(F("Pause"));
+                lcd.print(F("Pause  "));
+            }
+            else if (doneTesting) {
+                lcd.print(F("Done   "));
             }
             else {
-                lcd.print(F("Ready"));
+                lcd.print(F("Ready  "));
             }
         break;
         case 1:
-            lcd.print("Testing");
+            lcd.print(F("Testing"));
         break;
     }
 
     
 }
 
+
+
+// BATTERY CAPACITY TESTE LOGIC
+// Should run only when doing battery test but regardless of screen displayed
 void batteryTester() {
-    // when press button to start test
-        // SSR triggers starting the test
-        // isTesting becomes true
+    // if startTesting is true but not already testing
+    if (startTesting && !isTesting) {
+        setRelay(1); // Turn on the relay
+        isTesting = true; // we are now testing
+        doneTesting = false; // we are not done testing
+    }
 
-    // when press the button again
-        // SSR opens pausing the test
+    // this is "Pause" state
+    // turn off the relay during a test
+    else if (!startTesting && isTesting) {
+        setRelay(0); //Turn off the relay
+    }
 
-    // when the voltage reaches the low level
-        // SSR Closes
-        // Amp Hours saved to testResult
-        // testResult save to EEPROM
+    // keep the relay on so long as the test has started
+    else if (startTesting && isTesting) {
+        setRelay(1); // Turn on the relay;
+    }
+
+    // finish the test once the volts go low
+    if (voltage <= voltLowAlarm && isTesting) {
+        setRelay(0); //Turn off the relay
+        testResult = ampHourFloat; // save the result
+        // save test result to EEPROM 
+        isTesting = false; // we are no longer testing
+        startTesting = false; // we are not testing
+        doneTesting = true; // the test is done
+        
+    }
         
 }
-    
+
+// RELAY CONTROL
+void setRelay(byte on) {
+    // if sent on command and relay not already on
+    if (on && !relayOn) {
+        digitalWrite(relayPin, HIGH); // turn on the relay
+        relayOn = true; // save on state
+    }
+
+    // if sent off command and relay is still on
+    else if (!on && relayOn) {
+        digitalWrite(relayPin, LOW); // turn off the relay
+        relayOn = false; // save the state
+    }
+}
 
 void exitSetupScreen() {
     enterAddress = &exitSetup;
