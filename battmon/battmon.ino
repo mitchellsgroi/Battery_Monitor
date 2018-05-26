@@ -35,8 +35,11 @@
 #include <DallasTemperature.h>
 
 // DEFINITIONS
-#define PROTO
-#define DEBUG
+//#define PROTO
+#define PCBONE
+//#define PCBTWO
+
+//#define DEBUG
 //#define TESTING
 
 #define BUTTON_NONE     0
@@ -96,7 +99,77 @@
     // BUTTON LEVELS
     int selectVolts = 740;
     int enterVolts = 140;
+
+    // FLOAT DETECTION
+    float maxVoltage = 0;
+    float floatVoltage = 3.0;
+    float chargeVoltage = 4.2;
+    bool floating = false;
+
 #endif
+
+#ifdef PCBONE // Original PCB
+    #define ONE_WIRE_BUS 8
+    
+    LiquidCrystal lcd(12,11,5,4,3,2);
+
+    const int ledPin = 1;
+    const int buzzerPin = 9;
+    const int backlightPin = 10;
+    const int relayPin = 13;
+     
+    const int buttonPin = A0;
+    const int currentVoutPin = A1;
+    const int currentVrefPin = A2;
+    const int voltPin = A4;
+
+    // VOLTAGE
+    float topVolts = 28.5;
+
+    // BUTTON VOLTAGES
+    int selectVolts = 790;
+    int enterVolts = 260;
+
+    // FLOAT DETECTION
+    float maxVoltage = 0;
+    float floatVoltage = 13.4;
+    float chargeVoltage = 14.1;
+    bool floating = false;
+    
+     
+#endif
+
+#ifdef PCBTWO
+    #define ONE_WIRE_BUS 8
+    
+    LiquidCrystal lcd(12,11,5,4,3,2);
+
+    const int ledPin = 1;
+    const int buzzerPin = 9;
+    const int backlightPin = 10;
+    const int relayPin = 7;
+     
+    const int buttonPin = A0;
+    const int currentVoutPin = A1;
+    const int currentVrefPin = A2;
+    const int voltPin = A3;
+
+    // VOLTAGE
+    float topVolts = 28.5;
+
+    // BUTTON VOLTAGES
+    int selectVolts = 800;
+    int enterVolts = 260;
+
+    // FLOAT DETECTION
+    float maxVoltage = 0;
+    float floatVoltage = 13.4;
+    float chargeVoltage = 14.1;
+    bool floating = false;
+    
+     
+#endif
+    
 
 RTC_DS1307 RTC;
 
@@ -237,12 +310,6 @@ byte ahSymbol[8] = {
 String tempAlarmHeader = "Temp Alarm";
 
 
-
-#ifdef PROTO
-
-#endif
-
-
 void setup() {
     // NEW BEGININGS
     lcd.createChar(2, ahSymbol);
@@ -276,8 +343,13 @@ void setup() {
     pinMode(ledPin, OUTPUT);
     pinMode(buzzerPin, OUTPUT);
     pinMode(relayPin, OUTPUT);
+    #ifdef PROTO
+        pinMode(buttonPin, INPUT);
+    #endif
     
-    pinMode(buttonPin, INPUT);
+    #ifdef PCBONE
+        pinMode(buttonPin, INPUT_PULLUP);
+    #endif
     pinMode(voltPin, INPUT);
     pinMode(currentVrefPin, INPUT);
     pinMode(currentVoutPin, INPUT);
@@ -315,9 +387,12 @@ void loop() {
     // Do all the second related functions
     checkSecond();
     // Check the voltage of the battery
-    batteryVoltage();  
+    batteryVoltage();
+  
     // Check the current in or out of the battery
     batteryCurrent();
+    // Check if the battery is floating
+    floatDetect();
     // Check the temperature
     temperature();
     #ifdef TESTING
@@ -767,6 +842,12 @@ void mainScreen() {
     lcd.write(byte(2));
     lcd.print(F(":"));
     lcd.print(ampHours, 1);
+
+    // INFO CHAR
+    lcd.setCursor(15, 1);
+    if (floating) {
+        lcd.print(F("F"));
+    }
 }
 
 void tempScreen() {
@@ -1115,7 +1196,9 @@ void testerSettingScreen() {
     lcd.setCursor(0, 1);
     if (batteryTest) {
         lcd.print(yes);
-        ampHourReset = true; // this may cause issues if menu is entered during test
+        if (!isTesting) {
+           ampHourReset = true; // Only reset ampHours if not testing 
+        }
         doneTesting = false;
     }
     else {
@@ -1312,9 +1395,21 @@ void settingsRead(){
   convertAlarms();
 }
 
-
-
 void floatDetect() {
+    if (current >= 0.5 || voltage < floatVoltage) {
+        floating = false;
+        maxVoltage = 0;
+    }
+
+    if (voltage > maxVoltage) {
+        maxVoltage = voltage;
+    }
+    
+    if (maxVoltage >= chargeVoltage && voltage >= floatVoltage && current < 0.5 && current > -0.5) {
+        floating = true;
+        ampHourFloat = 0;
+    }
+    
     // if the batteries voltage has been above 14, current has stayed very low, and the voltage is still above 13.2ish
         // then battery is floating
         // reset amp hours to zero and keep them there while floating
