@@ -1429,12 +1429,6 @@ void floatDetect() {
         // reset the maxvolts
 }
 
-void chargeDetect() {
-    // if charge input is high or current is in negative
-        // charging is true
-        // turn on the LED       
-}
-
 void buttonIncrement() {
     switch (whichButton) {
         case BUTTON_NONE:
