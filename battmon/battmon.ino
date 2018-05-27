@@ -27,7 +27,7 @@
 
 */
 // LIBRARIES
-
+#include <Wire.h>
 #include "RTClib.h"
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
@@ -35,7 +35,9 @@
 #include <DallasTemperature.h>
 
 // DEFINITIONS
-#define PROTO
+//#define PROTO
+#define PCBONE
+
 #define DEBUG
 //#define TESTING
 
@@ -75,7 +77,6 @@
 // INITIALISE
 
 #ifdef PROTO
-    #include <Wire.h>
     #define ONE_WIRE_BUS 11
 
     
@@ -98,8 +99,6 @@
     // BUTTON LEVELS
     int selectVolts = 740;
     int enterVolts = 140;
-<<<<<<< HEAD
-
     // FLOAT DETECTION
     float maxVoltage = 0;
     float floatVoltage = 3.0;
@@ -109,18 +108,12 @@
 #endif
 
 #ifdef PCBONE // Original PCB
-    #define SCL_PIN 7
-    #define SCL_PORT PORTD
-    #define SDA_PIN 6
-    #define SDA_PORT PORTD
-    
-    #include <SoftWire.h>
-    SoftWire Wire = SoftWire();
     
     #define ONE_WIRE_BUS 8
     
     LiquidCrystal lcd(12,11,5,4,3,2);
 
+    const int chargePin = 0;
     const int ledPin = 1;
     const int buzzerPin = 9;
     const int backlightPin = 10;
@@ -129,7 +122,7 @@
     const int buttonPin = A0;
     const int currentVoutPin = A1;
     const int currentVrefPin = A2;
-    const int voltPin = A4;
+    const int voltPin = A3;
 
     // VOLTAGE
     float topVolts = 28.5;
@@ -176,8 +169,6 @@
     bool floating = false;
     
      
-=======
->>>>>>> parent of 5e2b645... work towards full PCB compatibility
 #endif
 
 RTC_DS1307 RTC;
@@ -228,6 +219,8 @@ byte voltAlarming = false;
 int alarmCount = 0;
 int alarmMax = 2000;
 
+bool ledOn = false;
+
 // current
 int vRefRaw = 0;
 int vOutRaw = 0;
@@ -248,6 +241,11 @@ int rawVolts = 0;
 int arrayVolts[numReadings];
 float totalVolts = 0;
 int iVolts = 0;
+
+// CHARGING
+
+int chargeHigh = LOW;
+bool isCharging = true;
 
 
 // Battery Testing
@@ -362,6 +360,9 @@ void setup() {
     pinMode(relayPin, OUTPUT);
     
     pinMode(buttonPin, INPUT);
+    #ifdef PCBONE
+        pinMode(buttonPin, INPUT_PULLUP);
+    #endif
     pinMode(voltPin, INPUT);
     pinMode(currentVrefPin, INPUT);
     pinMode(currentVoutPin, INPUT);
@@ -670,7 +671,7 @@ void soundAlarm() {
     if (voltAlarming || tempAlarming || alarmCount) {
         switch (settings[WA]) {
             case 0:
-             digitalWrite(ledPin, LOW);
+             setLed(0);
              digitalWrite(buzzerPin, LOW);
             break;
             case 1:
@@ -683,12 +684,17 @@ void soundAlarm() {
             break;
             case 3:
                 flashBuzzer();
-                digitalWrite(ledPin, LOW);
+                setLed(0);
             break;
         }
     }
     else {
-        digitalWrite(ledPin, LOW);
+        if (isCharging) {
+            setLed(1);
+        }
+        else {
+            setLed(0);
+        }
         digitalWrite(buzzerPin, LOW);
     }
     
@@ -1327,6 +1333,21 @@ void setRelay(byte on) {
     }
 }
 
+// LED CONTROL
+void setLed(byte on) {
+    // if sent on command and relay not already on
+    if (on && !ledOn) {
+        digitalWrite(ledPin, HIGH); // turn on the relay
+        ledOn = true; // save on state
+    }
+
+    // if sent off command and relay is still on
+    else if (!on && ledOn) {
+        digitalWrite(ledPin, LOW); // turn off the relay
+        ledOn = false; // save the state
+    }
+}
+
 void exitSetupScreen() {
     enterAddress = &exitSetup;
     enterModulo = 2;
@@ -1440,10 +1461,10 @@ void buttonIncrement() {
 
 void flashLed() {
     if (flashState) {
-        digitalWrite(ledPin, HIGH);
+        setLed(1);
     }
     else {
-        digitalWrite(ledPin, LOW);
+        setLed(0);
     }
 }
 
@@ -1465,5 +1486,20 @@ void checkSettings() {
         exitSetup = false;
     }
 }
+
+
+
+
+void charging() {
+    chargeHigh = digitalRead(chargePin);
+    if (current < 1 || chargeHigh) {
+        isCharging = true;
+    }
+
+    else {
+        isCharging = false;
+    }
+}
+
 
 
