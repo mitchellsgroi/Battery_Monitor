@@ -35,11 +35,8 @@
 #include <DallasTemperature.h>
 
 // DEFINITIONS
-//#define PROTO
-#define PCBONE
-//#define PCBTWO
-
-//#define DEBUG
+#define PROTO
+#define DEBUG
 //#define TESTING
 
 #define BUTTON_NONE     0
@@ -101,6 +98,7 @@
     // BUTTON LEVELS
     int selectVolts = 740;
     int enterVolts = 140;
+<<<<<<< HEAD
 
     // FLOAT DETECTION
     float maxVoltage = 0;
@@ -178,8 +176,9 @@
     bool floating = false;
     
      
+=======
+>>>>>>> parent of 5e2b645... work towards full PCB compatibility
 #endif
-    
 
 RTC_DS1307 RTC;
 
@@ -320,6 +319,12 @@ byte ahSymbol[8] = {
 String tempAlarmHeader = "Temp Alarm";
 
 
+
+#ifdef PROTO
+
+#endif
+
+
 void setup() {
     // NEW BEGININGS
      Wire.begin();
@@ -355,13 +360,8 @@ void setup() {
     pinMode(ledPin, OUTPUT);
     pinMode(buzzerPin, OUTPUT);
     pinMode(relayPin, OUTPUT);
-    #ifdef PROTO
-        pinMode(buttonPin, INPUT);
-    #endif
     
-    #ifdef PCBONE
-        pinMode(buttonPin, INPUT_PULLUP);
-    #endif
+    pinMode(buttonPin, INPUT);
     pinMode(voltPin, INPUT);
     pinMode(currentVrefPin, INPUT);
     pinMode(currentVoutPin, INPUT);
@@ -399,12 +399,9 @@ void loop() {
     // Do all the second related functions
     checkSecond();
     // Check the voltage of the battery
-    batteryVoltage();
-  
+    batteryVoltage();  
     // Check the current in or out of the battery
     batteryCurrent();
-    // Check if the battery is floating
-    floatDetect();
     // Check the temperature
     temperature();
     #ifdef TESTING
@@ -854,12 +851,6 @@ void mainScreen() {
     lcd.write(byte(2));
     lcd.print(F(":"));
     lcd.print(ampHours, 1);
-
-    // INFO CHAR
-    lcd.setCursor(15, 1);
-    if (floating) {
-        lcd.print(F("F"));
-    }
 }
 
 void tempScreen() {
@@ -1208,9 +1199,7 @@ void testerSettingScreen() {
     lcd.setCursor(0, 1);
     if (batteryTest) {
         lcd.print(yes);
-        if (!isTesting) {
-           ampHourReset = true; // Only reset ampHours if not testing 
-        }
+        ampHourReset = true; // this may cause issues if menu is entered during test
         doneTesting = false;
     }
     else {
@@ -1407,21 +1396,9 @@ void settingsRead(){
   convertAlarms();
 }
 
-void floatDetect() {
-    if (current >= 0.5 || voltage < floatVoltage) {
-        floating = false;
-        maxVoltage = 0;
-    }
 
-    if (voltage > maxVoltage) {
-        maxVoltage = voltage;
-    }
-    
-    if (maxVoltage >= chargeVoltage && voltage >= floatVoltage && current < 0.5 && current > -0.5) {
-        floating = true;
-        ampHourFloat = 0;
-    }
-    
+
+void floatDetect() {
     // if the batteries voltage has been above 14, current has stayed very low, and the voltage is still above 13.2ish
         // then battery is floating
         // reset amp hours to zero and keep them there while floating
