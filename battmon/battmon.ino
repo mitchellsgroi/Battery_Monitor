@@ -27,7 +27,7 @@
 
 */
 // LIBRARIES
-#include <Wire.h>
+
 #include "RTClib.h"
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
@@ -78,8 +78,10 @@
 // INITIALISE
 
 #ifdef PROTO
-    
+    #include <Wire.h>
     #define ONE_WIRE_BUS 11
+
+    
     
     LiquidCrystal lcd(8,9,4,5,6,7);
     const int backlightPin = 3;
@@ -109,6 +111,14 @@
 #endif
 
 #ifdef PCBONE // Original PCB
+    #define SCL_PIN 7
+    #define SCL_PORT PORTD
+    #define SDA_PIN 6
+    #define SDA_PORT PORTD
+    
+    #include <SoftWire.h>
+    SoftWire Wire = SoftWire();
+    
     #define ONE_WIRE_BUS 8
     
     LiquidCrystal lcd(12,11,5,4,3,2);
@@ -312,9 +322,11 @@ String tempAlarmHeader = "Temp Alarm";
 
 void setup() {
     // NEW BEGININGS
+     Wire.begin();
     lcd.createChar(2, ahSymbol);
     lcd.begin(16,2);
-    Wire.begin();
+    
+   
     RTC.begin();
     sensors.begin();
 
