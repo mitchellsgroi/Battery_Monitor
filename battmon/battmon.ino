@@ -18,12 +18,16 @@
     - DONE-- Handle wrong settings --DONE
     - Comment everything
     - write float detection
-    - Write charge detection current & charge signal
+    - DONE-- Write charge detection current & charge signal --DONE
     - Done-- Write battery capacity tester --Done
     - Make work on old PCB
     - Make work on new PCB
-    - Address amp hour reset bug in capacity tester
+    - DONE-- Address amp hour reset bug in capacity tester --DONE
+    - Change float so only triggered after set time (15min);
 
+## BUGS
+    - Erratic current readings in test vehicle when running fridge. Switches between positive and negative triggering the charge LED
+    - Float detection will reset amp hours as voltage settles when charger is turned off mid charge.
 
 */
 // LIBRARIES
@@ -37,8 +41,9 @@
 // DEFINITIONS
 //#define PROTO
 #define PCBONE
+//#define PCBTWO
 
-#define DEBUG
+//#define DEBUG
 //#define TESTING
 
 #define BUTTON_NONE     0
@@ -99,6 +104,7 @@
     // BUTTON LEVELS
     int selectVolts = 740;
     int enterVolts = 140;
+    
     // FLOAT DETECTION
     float maxVoltage = 0;
     float floatVoltage = 3.0;
@@ -126,6 +132,9 @@
 
     // VOLTAGE
     float topVolts = 28.5;
+
+    // CURRENT
+    float kCurrent = 0.0;
 
     // BUTTON VOLTAGES
     int selectVolts = 790;
@@ -170,6 +179,7 @@
     
      
 #endif
+    
 
 RTC_DS1307 RTC;
 
@@ -230,7 +240,7 @@ int thisCurrent = 0;
 int totalCurrent = 0;
 int arrayCurrent[numReadings];
 int iCurrent = 0;
-float kCurrent = 0.15;
+
 float current = 0;       // final current to be displayed
 
 // voltage
@@ -245,7 +255,7 @@ int iVolts = 0;
 // CHARGING
 
 int chargeHigh = LOW;
-bool isCharging = true;
+bool isCharging = false;
 
 
 // Battery Testing
@@ -317,12 +327,6 @@ byte ahSymbol[8] = {
 String tempAlarmHeader = "Temp Alarm";
 
 
-
-#ifdef PROTO
-
-#endif
-
-
 void setup() {
     // NEW BEGININGS
      Wire.begin();
@@ -357,8 +361,7 @@ void setup() {
     pinMode(backlightPin, OUTPUT);
     pinMode(ledPin, OUTPUT);
     pinMode(buzzerPin, OUTPUT);
-    pinMode(relayPin, OUTPUT);
-    
+    pinMode(relayPin, OUTPUT);   
     pinMode(buttonPin, INPUT);
     #ifdef PCBONE
         pinMode(buttonPin, INPUT_PULLUP);
@@ -400,10 +403,14 @@ void loop() {
     // Do all the second related functions
     checkSecond();
     // Check the voltage of the battery
-    batteryVoltage();  
+    batteryVoltage();
+  
     // Check the current in or out of the battery
     batteryCurrent();
+    // Check if the battery is floating
+    floatDetect();
     // Check the temperature
+    charging();
     temperature();
     #ifdef TESTING
         voltage = 12.0;
@@ -414,8 +421,8 @@ void loop() {
     countAmpHours();
     // Trigger any alarms
     triggerAlarm();
-    // Check if a button has been presseds
     soundAlarm();
+    // Check if a button has been presseds
     buttons();
     // Print info the the LCD
     displayScreen();
@@ -857,6 +864,12 @@ void mainScreen() {
     lcd.write(byte(2));
     lcd.print(F(":"));
     lcd.print(ampHours, 1);
+
+    // INFO CHAR
+    lcd.setCursor(15, 1);
+    if (floating) {
+        lcd.print(F("F"));
+    }
 }
 
 void tempScreen() {
@@ -1205,7 +1218,9 @@ void testerSettingScreen() {
     lcd.setCursor(0, 1);
     if (batteryTest) {
         lcd.print(yes);
-        ampHourReset = true; // this may cause issues if menu is entered during test
+        if (!isTesting) {
+           ampHourReset = true; // Only reset ampHours if not testing 
+        }
         doneTesting = false;
     }
     else {
@@ -1417,16 +1432,20 @@ void settingsRead(){
   convertAlarms();
 }
 
-
-
 void floatDetect() {
-    // if the batteries voltage has been above 14, current has stayed very low, and the voltage is still above 13.2ish
-        // then battery is floating
-        // reset amp hours to zero and keep them there while floating
+    if (current >= 0.5 || voltage < floatVoltage) {
+        floating = false;
+        maxVoltage = 0;
+    }
 
-    // once current goes high or voltage goes lower
-        // then battery is not floating
-        // reset the maxvolts
+    if (voltage > maxVoltage) {
+        maxVoltage = voltage;
+    }
+    
+    if (maxVoltage >= chargeVoltage && voltage >= floatVoltage && voltage < 14.0 && current < 0.5 && current > -0.5) {
+        floating = true;
+        ampHourFloat = 0;
+    }
 }
 
 void buttonIncrement() {
@@ -1485,8 +1504,9 @@ void checkSettings() {
 
 
 void charging() {
+    
     chargeHigh = digitalRead(chargePin);
-    if (current < 1 || chargeHigh) {
+    if (current < -1.0 || chargeHigh) {
         isCharging = true;
     }
 
