@@ -145,7 +145,8 @@
     float floatVoltage = 13.4;
     float chargeVoltage = 14.1;
     bool floating = false;
-    
+    int floatSeconds = 0;   
+    int floatSecondsMax = 600;
      
 #endif
 
@@ -280,7 +281,7 @@ float tempHigh = 3.5;
 // buttons
 unsigned long buttonMillis = 0;
 const int buttonDelay = 50;
-const int buttonHyst = 40;
+const int buttonHyst = 10; // How many volts above or below the ones set above
 int rawButton = 0;
 byte whichButton = 0;
 byte buttonAction = false;
@@ -409,18 +410,15 @@ void loop() {
     batteryCurrent();
     // Check if the battery is floating
     floatDetect();
-    // Check the temperature
+    // Check if the battery is charging
     charging();
-    temperature();
-    #ifdef TESTING
-        voltage = 12.0;
-        current = 60.0;
-        temp = 3.5;
-    #endif      
+    // Check the temperature
+    temperature();     
     // Count the Amp Hours
     countAmpHours();
     // Trigger any alarms
     triggerAlarm();
+    // Set off buzzer or LED
     soundAlarm();
     // Check if a button has been presseds
     buttons();
@@ -1432,10 +1430,14 @@ void settingsRead(){
   convertAlarms();
 }
 
+
+
 void floatDetect() {
-    if (current >= 0.5 || voltage < floatVoltage) {
-        floating = false;
-        maxVoltage = 0;
+    // If current is flowing out or the voltage is too low
+    if (current >= 0.8 || voltage < floatVoltage) {
+        floating = false; // The battery is not floating
+        maxVoltage = 0; // Reset the max voltage
+        floatSeconds = 0; // Reset the float timer
     }
 
     if (voltage > maxVoltage) {
@@ -1443,8 +1445,15 @@ void floatDetect() {
     }
     
     if (maxVoltage >= chargeVoltage && voltage >= floatVoltage && voltage < 14.0 && current < 0.5 && current > -0.5) {
-        floating = true;
-        ampHourFloat = 0;
+        if (floatSeconds >= floatSecondsMax) {
+            floating = true;
+            ampHourFloat = 0;
+        }
+        else {
+            if (refresh) {
+                floatSeconds++;
+            }
+        }
     }
 }
 
