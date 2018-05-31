@@ -17,17 +17,25 @@
     - DONE--Put all the settings into an array of bytes --DONE
     - DONE-- Handle wrong settings --DONE
     - Comment everything
-    - write float detection
+    - DONE-- write float detection --DONE
     - DONE-- Write charge detection current & charge signal --DONE
     - Done-- Write battery capacity tester --Done
-    - Make work on old PCB
+    - Done-- Make work on old PCB --DONE
     - Make work on new PCB
     - DONE-- Address amp hour reset bug in capacity tester --DONE
     - DONE-- Change float so only triggered after set time (15min) --DONE
 
 ## BUGS
     - Erratic current readings in test vehicle when running fridge. Switches between positive and negative triggering the charge LED
+        - Added smoothing tp each reading before combining them with the LEM current formula. Initial testing shows stable current.
+    
     - Float detection will reset amp hours as voltage settles when charger is turned off mid charge.
+        - Added a time delay of approx 10min. Monitor must see float conditions for this 10min before resetting amp hours.
+
+    - Backlight doesn't light up while initialising.
+        - Initialise pins before startup tests.
+
+    - 2nd Run PCB has different LCD pinout than expected.
 
 */
 // LIBRARIES
@@ -347,6 +355,25 @@ void setup() {
     RTC.begin();
     sensors.begin();
 
+    // PIN THE TAIL ON THE DONKY
+    pinMode(backlightPin, OUTPUT);
+    pinMode(ledPin, OUTPUT);
+    pinMode(buzzerPin, OUTPUT);
+    pinMode(relayPin, OUTPUT);   
+    pinMode(buttonPin, INPUT);
+    #ifdef PCBONE
+        pinMode(buttonPin, INPUT_PULLUP);
+    #endif
+    pinMode(voltPin, INPUT);
+    pinMode(currentVrefPin, INPUT);
+    pinMode(currentVoutPin, INPUT);
+    
+
+    digitalWrite(backlightPin, HIGH);
+    digitalWrite(ledPin, LOW);
+    digitalWrite(buzzerPin, LOW);
+    digitalWrite(relayPin, LOW);
+
     if (!RTC.isrunning()){
         lcd.clear();
         lcd.print(F("RTC Resetting"));
@@ -367,24 +394,6 @@ void setup() {
     lcd.print(F("    Monitor     "));
     delay(300);
 
-    // PIN THE TAIL ON THE DONKY
-    pinMode(backlightPin, OUTPUT);
-    pinMode(ledPin, OUTPUT);
-    pinMode(buzzerPin, OUTPUT);
-    pinMode(relayPin, OUTPUT);   
-    pinMode(buttonPin, INPUT);
-    #ifdef PCBONE
-        pinMode(buttonPin, INPUT_PULLUP);
-    #endif
-    pinMode(voltPin, INPUT);
-    pinMode(currentVrefPin, INPUT);
-    pinMode(currentVoutPin, INPUT);
-    
-
-    digitalWrite(backlightPin, HIGH);
-    digitalWrite(ledPin, LOW);
-    digitalWrite(buzzerPin, LOW);
-    digitalWrite(relayPin, LOW);
 
 
     // CLEAR AVERAGING ARRAYS
