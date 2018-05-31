@@ -23,7 +23,7 @@
     - Make work on old PCB
     - Make work on new PCB
     - DONE-- Address amp hour reset bug in capacity tester --DONE
-    - Change float so only triggered after set time (15min);
+    - DONE-- Change float so only triggered after set time (15min) --DONE
 
 ## BUGS
     - Erratic current readings in test vehicle when running fridge. Switches between positive and negative triggering the charge LED
@@ -234,12 +234,21 @@ bool ledOn = false;
 
 // current
 int vRefRaw = 0;
+int totalVref = 0;
+int arrayVref[numReadings];
+int iVref = 0;
+float vRefAverage = 0;
+
 int vOutRaw = 0;
+int totalVout = 0;
+int arrayVout[numReadings];
+int iVout = 0;
+float vOutAverage = 0;
 //float vRef = 0;
 //float vOut = 0;
-int thisCurrent = 0;
-int totalCurrent = 0;
-int arrayCurrent[numReadings];
+float thisCurrent = 0;
+float totalCurrent = 0;
+float arrayCurrent[numReadings];
 int iCurrent = 0;
 
 float current = 0;       // final current to be displayed
@@ -382,6 +391,8 @@ void setup() {
     for (int i = 0; i < numReadings; i++) {
         arrayVolts[i] = 0;
         arrayCurrent[i] = 0;
+        arrayVref[i] = 0;
+        arrayVout[i] = 0;
     }
 
     // Read the temps sensor on startup
@@ -537,6 +548,7 @@ void batteryVoltage() {
     if (iVolts >= numReadings) {
         iVolts = 0;
     }
+    delay[1];
 
     // calculate average voltage
     voltage = ((totalVolts / numReadings) * (topVolts / 1023.0)) * kVolts;    
@@ -549,10 +561,41 @@ void batteryCurrent() {
     vRefRaw = analogRead(currentVrefPin);
     vOutRaw = analogRead(currentVoutPin);
 
-    
+    // take the old value from the total
+    totalVref -= arrayVref[iVref];
+    // Insert the new value
+    arrayVref[iVref] = vRefRaw;
+    // Add this new value to the total
+    totalVref += arrayVref[iVref];
+    // Go to next index
+    iVref++;
+    // Reset index if at the end of array
+    if (iVref >= numReadings) {
+        iVref = 0;
+    }
+    delay[1];
+
+    vRefAverage = totalVref / numReadings;
+
+
+        // take the old value from the total
+    totalVout -= arrayVout[iVout];
+    // Insert the new value
+    arrayVout[iVout] = vOutRaw;
+    // Add this new value to the total
+    totalVout += arrayVout[iVout];
+    // Go to next index
+    iVout++;
+    // Reset index if at the end of array
+    if (iVout >= numReadings) {
+        iVout = 0;
+    }
+    delay[1];
+
+    vOutAverage = totalVout / numReadings;
     
 
-    thisCurrent = 160 * (vOutRaw - vRefRaw);
+    thisCurrent = 160 * (vOutAverage - vRefAverage);
 
     // take the old value from the total
     totalCurrent -= arrayCurrent[iCurrent];
@@ -566,11 +609,12 @@ void batteryCurrent() {
     if (iCurrent >= numReadings) {
         iCurrent = 0;
     }
+    delay[1];
 
     // calculate the average
     current = ((totalCurrent / numReadings) * (5.0 / 1023.0)) + kCurrent;
 
-    if (current < 0.11 && current > -0.11) {
+    if (current < 0.4 && current > -0.4) {
         current = 0;
     }
     
