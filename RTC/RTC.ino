@@ -2,9 +2,17 @@
 #include "RTClib.h"
 #include <LiquidCrystal.h>
 
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+#define ONE_WIRE_BUS 11
+
 LiquidCrystal lcd(8,9,4,5,6,7);
 
 RTC_DS1307 RTC;
+
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
 
 int x = 0;
 int y = 1;
@@ -18,7 +26,8 @@ unsigned long wasMillis = 0;
 const int delayMillis = 1000;
 
 void setup () {
-  
+
+    sensors.begin();
     lcd.begin(16,2);
     Wire.begin();
     RTC.begin();
@@ -30,6 +39,8 @@ void setup () {
     }
 }
 void loop () {
+        lcd.setCursor(5, 0);
+    lcd.print(sensors.getDeviceCount());
     DateTime now = RTC.now(); 
 
     currentSecond = now.second();
@@ -41,6 +52,7 @@ void loop () {
         lcd.print("                ");
         lcd.setCursor(0, 0);
         lcd.print(x);
+        sensors.requestTemperatures();
       
     }
     wasSecond = currentSecond; 
@@ -54,6 +66,13 @@ void loop () {
         lcd.print(y);
         wasMillis = currentMillis;
     }
+
+
+
+    lcd.setCursor(8, 0);
+    lcd.print(sensors.getTempCByIndex(0));
+    lcd.setCursor(8, 1);
+    lcd.print(sensors.getTempCByIndex(1));
 
     
 
