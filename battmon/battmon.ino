@@ -24,6 +24,10 @@
     - Make work on new PCB
     - DONE-- Address amp hour reset bug in capacity tester --DONE
     - DONE-- Change float so only triggered after set time (15min) --DONE
+    - DONE-- adjust alarm screens for consistancy. --DONE
+    - add amp hour alarm
+    - add option to trigger relay on alarm
+    - Rearrange code/functions so everything is in an order that makes sense
 
 ## BUGS
     - Erratic current readings in test vehicle when running fridge. Switches between positive and negative triggering the charge LED
@@ -47,8 +51,8 @@
 #include <DallasTemperature.h>
 
 // DEFINITIONS
-//#define PROTO
-#define PCBONE
+#define PROTO
+//#define PCBONE
 //#define PCBTWO
 
 //#define DEBUG
@@ -95,6 +99,7 @@
     
     
     LiquidCrystal lcd(8,9,4,5,6,7);
+    const int chargePin = 2;
     const int backlightPin = 3;
     const int buttonPin = A0;
     const int voltPin = A3;
@@ -109,6 +114,9 @@
     // VOLTAGE
     float topVolts = 5;
 
+    // CURRENT
+    float kCurrent = 0;
+
     // BUTTON LEVELS
     int selectVolts = 740;
     int enterVolts = 140;
@@ -118,6 +126,8 @@
     float floatVoltage = 3.0;
     float chargeVoltage = 4.2;
     bool floating = false;
+    int floatSeconds = 0;   
+    int floatSecondsMax = 600;    
 
 #endif
 
@@ -908,6 +918,7 @@ void mainScreen() {
     
     if (refresh) {
         lcd.print(temp, 1);
+        lcd.print((char)223);
     }
 
     // AMP HOURS
@@ -960,10 +971,10 @@ void voltScreen() {
             lcd.print(F("Off"));
         break;
         case 1:
-            lcd.print(F(">"));
-            lcd.print(voltHighAlarm, 1);
-            lcd.print(F("V & <"));
+            lcd.print(F("<"));
             lcd.print(voltLowAlarm, 1);
+            lcd.print(F("V & >"));
+            lcd.print(voltHighAlarm, 1);
             lcd.print(F("V"));
             
         break;
