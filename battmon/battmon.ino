@@ -28,6 +28,7 @@
     - add amp hour alarm
     - add option to trigger relay on alarm
     - Rearrange code/functions so everything is in an order that makes sense
+    - Rewrite setup screens to account for extra temp probes
 
 ## BUGS
     - Erratic current readings in test vehicle when running fridge. Switches between positive and negative triggering the charge LED
@@ -69,8 +70,8 @@
 
 #define VHAT 0  // Volt High Alarm Tens
 #define VHAO 1  // Volt High Alarm Ones 
-#define VHAP 2
-#define VLAT 3
+#define VHAP 2  // Volt High Alarm Point
+#define VLAT 3  // Volt Low Alarm Tens
 #define VLAO 4
 #define VLAP 5
 
@@ -215,6 +216,10 @@ byte fifteenSecond = false;
 byte fifteenSecondCount = 0;
 byte fifteenSecondMax = 15;
 
+byte tempAdvance = false;
+byte tempAdvanceCount = 0;
+byte tempAdvanceMax = 5;
+
 unsigned long currentMillis = 0;  // millis for each loop for delays
 unsigned long refreshMillis = 0;
 const int refreshDelay = 1000;
@@ -301,6 +306,10 @@ float ampHourFloat = 0;
 byte ampHourReset = 0;
 
 // temperature
+float tempReadings[3];
+byte tempIndex = 0;
+
+int numTempSensors = 0;
 float temp = 2.5;       // final temperature reading to be displayed 
 float tempLow = -2.5;
 float tempHigh = 3.5;
@@ -363,7 +372,7 @@ void setup() {
     
    
     RTC.begin();
-    sensors.begin();
+    // sensors.begin();  // Moved to function
 
     // PIN THE TAIL ON THE DONKY
     pinMode(backlightPin, OUTPUT);
@@ -414,20 +423,48 @@ void setup() {
         arrayVout[i] = 0;
     }
 
-    // Read the temps sensor on startup
-    sensors.requestTemperatures();
-    // ping the sensor(s) for the temp reading
-    temp = sensors.getTempCByIndex(0);
+//    // Read the temps sensor on startup
+//    sensors.requestTemperatures();
+//    // ping the sensor(s) for the temp reading
+//    temp = sensors.getTempCByIndex(0);
+
+    
+
+    // read persistant values from the EEPROM
+    settingsRead();
 
     // set up the alarm values
     convertAlarms();
 
-    // read persistant values from the EEPROM
-    settingsRead();
+    setupTempSensors();
     
     lcd.clear();
     
 }
+
+void setupTempSensors() {
+
+    // check the number of temp sensors connected
+    // make a correctly sized array to store the values
+    // read all the temps and save them to the array (for loop)
+    // either return the array or make a global variable.
+    
+    sensors.begin();
+    delay(10);
+    numTempSensors = sensors.getDeviceCount();
+
+    lcd.clear();
+    lcd.print(numTempSensors);
+    lcd.print(F(" Temp Probes"));
+    delay(500);
+
+    sensors.requestTemperatures();
+
+    for (int i = 0; i < numTempSensors; i++) {
+        tempReadings[i] = sensors.getTempCByIndex(i);
+    }
+}
+
 void loop() {
     // Do all the millis related functions
     checkMillis();
@@ -435,7 +472,6 @@ void loop() {
     checkSecond();
     // Check the voltage of the battery
     batteryVoltage();
-  
     // Check the current in or out of the battery
     batteryCurrent();
     // Check if the battery is floating
@@ -527,11 +563,18 @@ void checkSecond() {
         }
     
         // change the magic 15 here to a variable that can be changed
-        if (((currentSecond % fifteenSecondMax) == 0) && currentSecond != wasSecond) {
+        if (((currentSecond % fifteenSecondMax) == 0) && secondPassed) {
             fifteenSecond = true;
         }
         else {
             fifteenSecond = false;
+        }
+
+        if (((currentSecond % tempAdvanceMax) == 0) && secondPassed) {
+            tempAdvance = true;
+        }
+        else {
+            tempAdvance = false;
         }
         
         wasSecond = currentSecond;
@@ -543,11 +586,17 @@ void checkSecond() {
                 fifteenSecond = true;
                 fifteenSecondCount = 0;
             }
-            fifteenSecondCount++;       
+            fifteenSecondCount++;
+
+            if (tempAdvanceCount >= tempAdvanceMax) {
+                tempAdvance = true;
+                tempAdvanceCount = 0;
+            }
          }
          else {
             secondPassed = false;
             fifteenSecond = false;
+            tempAdvance = false;
          }
     }
 }
@@ -655,11 +704,13 @@ void countAmpHours() {
 void temperature() {
     // TEMPERATURE
     if (fifteenSecond && !selectCount && !batteryTest) {
-        sensors.requestTemperaturesByIndex(0);
-        // ping the sensor(s) for the temp reading
-        temp = sensors.getTempCByIndex(0);
-        // just counting for now
-//        temp++;
+        numTempSensors = sensors.getDeviceCount();
+        // request readings from all temp sensors
+        sensors.requestTemperatures();
+        // save the readings to the array
+        for (int i = 0; i < numTempSensors; i++) {
+            tempReadings[i] = sensors.getTempCByIndex(i);
+        }
     }    
 }
 
@@ -908,18 +959,7 @@ void mainScreen() {
     }
 
     // TEMPERATURE
-    lcd.setCursor(8, 0);
-    if (tempAlarming) {
-        flashString(F("T:"));
-    }
-    else {
-        lcd.print(F("T:"));
-    }
-    
-    if (refresh) {
-        lcd.print(temp, 1);
-        lcd.print((char)223);
-    }
+    displayTempReadings();
 
     // AMP HOURS
     lcd.setCursor(8, 1);
@@ -932,6 +972,41 @@ void mainScreen() {
     if (floating) {
         lcd.print(F("F"));
     }
+}
+
+void displayTempReadings() {
+    if (tempAdvance) {
+        tempIndex++;
+        
+        if (tempIndex >= numTempSensors) {
+            tempIndex = 0;
+        }
+    }
+
+    if (refresh) {
+        lcd.setCursor(8, 0);
+        if (numTempSensors > 1) {
+            lcd.setCursor(7, 0);
+        }
+        if (tempAlarming) {
+            flashString(F("T"));
+            if (numTempSensors > 1) {
+                flash(tempIndex + 1);
+            }
+            flashString(F(":"));
+        }
+        else {
+            lcd.print(F("T"));
+            if (numTempSensors > 1) {
+                lcd.print(tempIndex + 1);
+            }
+            lcd.print(F(":"));
+        }
+        
+        lcd.print(tempReadings[tempIndex], 1);
+        lcd.print((char)223);       
+    }
+
 }
 
 void tempScreen() {
@@ -1237,22 +1312,17 @@ void setupScreen() {
         break;
         case 14:
             testerSettingScreen();
-        break;            
+        break;
         case 15:
-            screenHeader(F("RTC Status"));
-            if (RTC.isrunning()){
-                lcd.setCursor(0, 1);
-                lcd.print(F("OK"));                    
-            }
-            else {
-                lcd.setCursor(0, 1);
-                lcd.print(F("Error: isFucked"));
-            }
-        break;    
+            tempProbeScreen();
+        break;            
         case 16:
+            rtcStatusScreen();
+        break;    
+        case 17:
             exitSetupScreen();
         break;
-        case 17:
+        case 18:
             convertAlarms();
             checkSettings();
             if (exitSetup) {
@@ -1271,7 +1341,33 @@ void setupScreen() {
     }
 }
 
+void tempAlarmSettingsScreen() {
+    // send the variable addresses to the button pressing function
+    // cycle through the T1 alarms
+    // check if another probe is present
+        // move on to voltage if not
+    // cycle through the T2 alarms
+    // move on to voltage
+    
+}
 
+void tempProbeScreen() {
+    screenHeader(F("Num Temp Probes"));
+    lcd.setCursor(0, 1);
+    lcd.print(numTempSensors);
+}
+
+void rtcStatusScreen() {
+    screenHeader(F("RTC Status"));
+    if (RTC.isrunning()){
+        lcd.setCursor(0, 1);
+        lcd.print(F("OK"));                    
+    }
+    else {
+        lcd.setCursor(0, 1);
+        lcd.print(F("Error: isFucked"));
+    }
+}
 
 void testerSettingScreen() {
     enterAddress = &batteryTest;
