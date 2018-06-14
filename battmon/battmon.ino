@@ -41,6 +41,7 @@
         - Initialise pins before startup tests.
 
     - 2nd Run PCB has different LCD pinout than expected.
+        - Use wire instead of terminal strip
 
 */
 // LIBRARIES
@@ -66,7 +67,7 @@
 #define NORMAL 5
 #define SETUP 6
 
-#define SETTING_SIZE 20
+#define SETTING_SIZE 30
 
 #define VHAT 0  // Volt High Alarm Tens
 #define VHAO 1  // Volt High Alarm Ones 
@@ -85,10 +86,23 @@
 #define TLAO 12
 #define TLAP 13
 
-#define VA 14
-#define TA 15
+#define THAST 14
+#define THATT 15
+#define THAOT 16
+#define THAPT 17
 
-#define WA 16   // Which Alarm 
+#define TLAST 18
+#define TLATT 19
+#define TLAOT 20
+#define TLAPT 21
+
+#define VA 22
+#define TA 23
+#define TAT 24
+
+#define WA 25   // Which Alarm
+
+ 
 
 
 
@@ -240,10 +254,10 @@ String yes = "Yes";
 
 byte settings[SETTING_SIZE];
 
-byte tempAlarm = 0;
-float tempLowAlarm = 0;
-float tempHighAlarm = 0;
-byte tempAlarming = false;
+byte tempAlarm[2];
+float tempLowAlarm[2];
+float tempHighAlarm[2];
+byte tempAlarming[2];
 
 byte voltAlarm = 0;
 float voltLowAlarm = 0;
@@ -306,13 +320,10 @@ float ampHourFloat = 0;
 byte ampHourReset = 0;
 
 // temperature
-float tempReadings[3];
+float tempReadings[2];
 byte tempIndex = 0;
-
 int numTempSensors = 0;
-float temp = 2.5;       // final temperature reading to be displayed 
-float tempLow = -2.5;
-float tempHigh = 3.5;
+
 
 // buttons
 unsigned long buttonMillis = 0;
@@ -343,7 +354,7 @@ const int flashDelay = 250;
 byte selectCount = 0;
 byte backlightLevel = 0;
 byte setupCount = 0;
-byte tempSetupCount = 0;
+byte tempSetCount = 0;
 byte numScreens = 5;
 
 byte enterSetup = false;
@@ -361,7 +372,7 @@ byte ahSymbol[8] = {
   B00101,
 };
 
-String tempAlarmHeader = "Temp Alarm";
+String tempAlarmHeader = "Temp Range";
 
 
 void setup() {
@@ -453,9 +464,13 @@ void setupTempSensors() {
     delay(10);
     numTempSensors = sensors.getDeviceCount();
 
+    if (numTempSensors > 2) {
+        numTempSensors = 2;
+    }
+
     lcd.clear();
     lcd.print(numTempSensors);
-    lcd.print(F(" Temp Probes"));
+    lcd.print(F(" Temp Probe(s)"));
     delay(500);
 
     sensors.requestTemperatures();
@@ -483,7 +498,14 @@ void loop() {
     // Count the Amp Hours
     countAmpHours();
     // Trigger any alarms
-    triggerAlarm();
+    triggerTempAlarm(0, TA);
+    if (numTempSensors > 1) {
+        triggerTempAlarm(1, TAT);
+    }
+    else {
+        tempAlarming[1] = false;
+    }
+    triggerVoltAlarm();
     // Set off buzzer or LED
     soundAlarm();
     // Check if a button has been presseds
@@ -592,6 +614,7 @@ void checkSecond() {
                 tempAdvance = true;
                 tempAdvanceCount = 0;
             }
+            tempAdvanceCount++;
          }
          else {
             secondPassed = false;
@@ -704,7 +727,6 @@ void countAmpHours() {
 void temperature() {
     // TEMPERATURE
     if (fifteenSecond && !selectCount && !batteryTest) {
-        numTempSensors = sensors.getDeviceCount();
         // request readings from all temp sensors
         sensors.requestTemperatures();
         // save the readings to the array
@@ -714,40 +736,44 @@ void temperature() {
     }    
 }
 
-void triggerAlarm() {
-    switch(settings[TA]) {
+void triggerTempAlarm(byte i, byte settingIndex) {
+    switch(settings[settingIndex]) {
         case 0:
-            tempAlarming = false;
+            tempAlarming[i] = false;
         break;
         case 1:
-            if (temp >= tempHighAlarm || temp <= tempLowAlarm) {
-                tempAlarming = true;
+            if (tempReadings[i] >= tempHighAlarm[i] || tempReadings[i] <= tempLowAlarm[i]) {
+                tempAlarming[i] = true;
                 alarmCount = alarmMax;
             }
             else {
-                tempAlarming = false;
+                tempAlarming[i] = false;
             }
         break;
         case 2:
-            if (temp >= tempHighAlarm) {
-                tempAlarming = true;
+            if (tempReadings[i] >= tempHighAlarm[i]) {
+                tempAlarming[i] = true;
                 alarmCount = alarmMax;
             }
             else {
-                tempAlarming = false;
+                tempAlarming[i] = false;
             }
         break;    
         case 3:
-            if (temp <= tempLowAlarm) {
-                tempAlarming = true;
+            if (tempReadings[i] <= tempLowAlarm[i]) {
+                tempAlarming[i] = true;
                 alarmCount = alarmMax;
             }
             else {
-                tempAlarming = false;
+                tempAlarming[i] = false;
             }
         break;
     }
 
+
+}
+
+void triggerVoltAlarm() {
     switch(settings[VA]) {
         case 0:
             voltAlarming = false;
@@ -780,14 +806,11 @@ void triggerAlarm() {
             }
         break;
     }
-
-    if ((!voltAlarming || !tempAlarming) && alarmCount > 0) {
-        alarmCount-- ;
-    }
 }
 
+
 void soundAlarm() {
-    if (voltAlarming || tempAlarming || alarmCount) {
+    if (voltAlarming || tempAlarming[0] || tempAlarming[1] || alarmCount) {
         switch (settings[WA]) {
             case 0:
              setLed(0);
@@ -815,6 +838,10 @@ void soundAlarm() {
             setLed(0);
         }
         digitalWrite(buzzerPin, LOW);
+    }
+
+    if ((!voltAlarming || !tempAlarming[0] || !tempAlarming[1]) && alarmCount > 0) {
+        alarmCount-- ;
     }
     
 }
@@ -876,29 +903,39 @@ void displayScreen() {
         case 1:
             enterAddress = &settings[TA];
             enterModulo = 4;
-            tempScreen();
+            tempScreen(0, TA);
         break;
         case 2:
+            if (numTempSensors > 1) {
+                enterAddress = &settings[TAT];
+                enterModulo = 4;
+                tempScreen(1, TAT);
+            }
+            else {
+                selectCount++;
+            }
+        break;
+        case 3:
             enterAddress = &settings[VA];
             enterModulo = 4;
             voltScreen();
         break;
-        case 3:
+        case 4:
             enterAddress = &settings[WA];
             enterModulo = 4;
             alarmScreen();
         break;
-        case 4:
+        case 5:
             enterAddress = &ampHourReset;
             enterModulo = 2;
             ampHourScreen();
         break;
-        case 5:
+        case 6:
             enterAddress = &enterSetup;
             enterModulo = 2;
             enterSetupScreen();
         break;
-        case 6:
+        case 7:
             if (doneTesting) {
                 batteryTest = 0;
             }
@@ -906,11 +943,12 @@ void displayScreen() {
                 selectCount++;
             }
             else {
+                convertAlarms();
                 settingsWrite();
                 selectCount = 0;
             }
         break;
-        case 7:
+        case 8:
             selectAddress = &setupCount;
             setupScreen();
         break;
@@ -983,55 +1021,58 @@ void displayTempReadings() {
         }
     }
 
-    if (refresh) {
-        lcd.setCursor(8, 0);
-        if (numTempSensors > 1) {
-            lcd.setCursor(7, 0);
-        }
-        if (tempAlarming) {
-            flashString(F("T"));
-            if (numTempSensors > 1) {
-                flash(tempIndex + 1);
-            }
-            flashString(F(":"));
-        }
-        else {
-            lcd.print(F("T"));
-            if (numTempSensors > 1) {
-                lcd.print(tempIndex + 1);
-            }
-            lcd.print(F(":"));
-        }
-        
-        lcd.print(tempReadings[tempIndex], 1);
-        lcd.print((char)223);       
+    
+
+    lcd.setCursor(8, 0);
+    if (numTempSensors > 1) {
+        lcd.setCursor(7, 0);
     }
+    if (tempAlarming[tempIndex]) {
+        flashString(F("T"));
+        if (numTempSensors > 1) {
+            flash(tempIndex + 1);
+        }
+        flashString(F(":"));
+    }
+    else {
+        lcd.print(F("T"));
+        if (numTempSensors > 1) {
+            lcd.print(tempIndex + 1);
+        }
+        lcd.print(F(":"));
+    }
+
+    lcd.print(tempReadings[tempIndex], 1);
+    lcd.print((char)223);
+           
 
 }
 
-void tempScreen() {
+void tempScreen(byte i, byte settingIndex) {
     screenHeader(tempAlarmHeader);
+    lcd.print(F(" "));
+    lcd.print(tempReadings[i], 1);
+    lcd.print((char)223);
     lcd.setCursor(0, 1);
-    switch (settings[TA]) {
+    switch (settings[settingIndex]) {
         case 0:
-            lcd.print(F("Off"));  
+            lcd.print(F("Any"));  
         break;         
         case 1:
-            lcd.print(F("<"));
-            lcd.print(tempLowAlarm, 1);
+            lcd.print(tempLowAlarm[i], 1);
             lcd.print((char)223);
-            lcd.print(" and >");
-            lcd.print(tempHighAlarm, 1);
+            lcd.print(F(" to "));
+            lcd.print(tempHighAlarm[i], 1);
             lcd.print((char)223);
         break;
         case 2:
-            lcd.print(F(">"));
-            lcd.print(tempHighAlarm, 1);
+            lcd.print(F("<"));
+            lcd.print(tempHighAlarm[i], 1);
             lcd.print((char)223);
         break;
         case 3:
-            lcd.print(F("<"));
-            lcd.print(tempLowAlarm, 1);
+            lcd.print(F(">"));
+            lcd.print(tempLowAlarm[i], 1);
             lcd.print((char)223);
         break;
          
@@ -1039,27 +1080,28 @@ void tempScreen() {
 }
 
 void voltScreen() {
-    screenHeader(F("Voltage Alarm"));
+    screenHeader(F("Voltage Range"));
     lcd.setCursor(0, 1);
     switch (settings[VA]) {
         case 0:
-            lcd.print(F("Off"));
+            lcd.print(F("Any"));
         break;
         case 1:
-            lcd.print(F("<"));
             lcd.print(voltLowAlarm, 1);
-            lcd.print(F("V & >"));
+            lcd.print(F("V to "));
             lcd.print(voltHighAlarm, 1);
             lcd.print(F("V"));
             
         break;
         case 2:
-            lcd.print(F(">"));
+            lcd.print(F("<"));
             lcd.print(voltHighAlarm, 1);
+            lcd.print(F("V"));
         break;
         case 3:
-            lcd.print(F("<"));
-            lcd.print(voltLowAlarm, 1);  
+            lcd.print(F(">"));
+            lcd.print(voltLowAlarm, 1); 
+            lcd.print(F("V")); 
         break;          
     }
 }
@@ -1108,143 +1150,30 @@ void enterSetupScreen() {
 void setupScreen() {
     switch (setupCount) {
         case 0:
-            enterAddress = &settings[TLAS];
-            enterModulo = 2;
-            screenHeader(tempLowString);
-            lcd.setCursor(0, 1);
-            if (settings[TLAS] == 1) {
-                flashString(plus);
-            }    
-            else {
-                flashString(neg);
-            }
-            lcd.print(settings[TLAT]);
-            lcd.print(settings[TLAO]);
-            lcd.print(".");
-            lcd.print(settings[TLAP]);
-            lcd.print((char)223);
-            
+            tempSettings(TLAS, F("Temp Minimum"));
         break;
         case 1:
-            enterAddress = &settings[TLAT];
-            enterModulo = 10;
-            screenHeader(tempLowString);            
-            lcd.setCursor(0, 1);
-            if (settings[TLAS] == 1) {
-                lcd.print("+");
-            }    
-            else {
-                lcd.print("-");
-            }
-            flash(settings[TLAT]);
-            lcd.print(settings[TLAO]);
-            lcd.print(".");
-            lcd.print(settings[TLAP]);
-            lcd.print((char)223);
+            tempSettings(THAS, F("Temp Maximum"));
         break;
         case 2:
-            enterAddress = &settings[TLAO];
-            enterModulo = 10;
-            screenHeader(tempLowString);                    
-            lcd.setCursor(0, 1);
-            if (settings[TLAS] == 1) {
-                lcd.print("+");
-            }    
-            else {
-                lcd.print("-");
+            if (numTempSensors > 1) {
+                tempSettings(TLAST, F("Temp 2 Minimum"));
             }
-            lcd.print(settings[TLAT]);
-            flash(settings[TLAO]);
-            lcd.print(".");
-            lcd.print(settings[TLAP]);
-            lcd.print((char)223);
-        break;        
+
+            else {
+                setupCount++;
+            }
+        break;
         case 3:
-            enterAddress = &settings[TLAP];
-            enterModulo = 10;
-            screenHeader(tempLowString);
-            lcd.setCursor(0, 1);
-            if (settings[TLAS] == 1) {
-                lcd.print("+");
-            }    
-            else {
-                lcd.print("-");
+            if (numTempSensors > 1) {
+                tempSettings(THAST, F("Temp 2 Maximum"));
             }
-            lcd.print(settings[TLAT]);
-            lcd.print(settings[TLAO]);
-            lcd.print(".");
-            flash(settings[TLAP]);
-            lcd.print((char)223);
-        break;            
+
+            else {
+                setupCount++;
+            }
+        break;           
         case 4:
-            enterAddress = &settings[THAS];
-            enterModulo = 2;        
-            screenHeader(tempHighString);
-            lcd.setCursor(0, 1);
-            if (settings[THAS] == 1) {
-                flashString(plus);
-            }    
-            else {
-                flashString(neg);
-            }
-            lcd.print(settings[THAT]);
-            lcd.print(settings[THAO]);
-            lcd.print(".");
-            lcd.print(settings[THAP]);
-            lcd.print((char)223);
-        break;
-        case 5:
-            enterAddress = &settings[THAT];
-            enterModulo = 10;        
-            screenHeader(tempHighString);
-            lcd.setCursor(0, 1);
-            if (settings[THAS] == 1) {
-                lcd.print(plus);
-            }    
-            else {
-                lcd.print(neg);
-            }
-            flash(settings[THAT]);
-            lcd.print(settings[THAO]);
-            lcd.print(".");
-            lcd.print(settings[THAP]);
-            lcd.print((char)223);
-        break;
-        case 6:
-            enterAddress = &settings[THAO];
-            enterModulo = 10;        
-            screenHeader(tempHighString);
-            lcd.setCursor(0, 1);
-            if (settings[THAS] == 1) {
-                lcd.print(plus);
-            }    
-            else {
-                lcd.print(neg);
-            }
-            lcd.print(settings[THAT]);
-            flash(settings[THAO]);
-            lcd.print(".");
-            lcd.print(settings[THAP]);
-            lcd.print((char)223);
-        break;
-        case 7:
-            enterAddress = &settings[THAP];
-            enterModulo = 10;        
-            screenHeader(tempHighString);
-            lcd.setCursor(0, 1);
-            if (settings[THAS] == 1) {
-                lcd.print(plus);
-            }    
-            else {
-                lcd.print(neg);
-            }
-            lcd.print(settings[THAT]);
-            lcd.print(settings[THAO]);
-            lcd.print(".");
-            flash(settings[THAP]);
-            lcd.print((char)223);
-        break;
-        case 8:
             enterAddress = &settings[VLAT];
             enterModulo = 3;
             screenHeader(voltLowString);
@@ -1255,7 +1184,7 @@ void setupScreen() {
             lcd.print(settings[VLAP]);
             lcd.print(F("V"));
         break;
-        case 9:
+        case 5:
             enterAddress = &settings[VLAO];
             enterModulo = 10;
             screenHeader(voltLowString);
@@ -1266,7 +1195,7 @@ void setupScreen() {
             lcd.print(settings[VLAP]);
             lcd.print(F("V"));
         break;
-        case 10:
+        case 6:
             enterAddress = &settings[VLAP];
             enterModulo = 10;
             screenHeader(voltLowString);
@@ -1277,7 +1206,7 @@ void setupScreen() {
             flash(settings[VLAP]);
             lcd.print(F("V"));
         break;
-        case 11:
+        case 7:
             enterAddress = &settings[VHAT];
             enterModulo = 3;
             screenHeader(voltHighString);
@@ -1288,7 +1217,7 @@ void setupScreen() {
             lcd.print(settings[VHAP]);
             lcd.print(F("V"));
         break;
-        case 12:
+        case 8:
             enterAddress = &settings[VHAO];
             enterModulo = 10;
             screenHeader(voltHighString);
@@ -1299,7 +1228,7 @@ void setupScreen() {
             lcd.print(settings[VHAP]);
             lcd.print(F("V"));
         break;
-        case 13:
+        case 9:
             enterAddress = &settings[VHAP];
             enterModulo = 10;
             screenHeader(voltHighString);
@@ -1310,19 +1239,19 @@ void setupScreen() {
             flash(settings[VHAP]);
             lcd.print(F("V"));
         break;
-        case 14:
+        case 10:
             testerSettingScreen();
         break;
-        case 15:
+        case 11:
             tempProbeScreen();
         break;            
-        case 16:
+        case 12:
             rtcStatusScreen();
         break;    
-        case 17:
+        case 13:
             exitSetupScreen();
         break;
-        case 18:
+        case 14:
             convertAlarms();
             checkSettings();
             if (exitSetup) {
@@ -1338,17 +1267,90 @@ void setupScreen() {
                 lcd.clear();
                 setupCount = 0;
             }
+        break;
     }
 }
 
-void tempAlarmSettingsScreen() {
-    // send the variable addresses to the button pressing function
-    // cycle through the T1 alarms
-    // check if another probe is present
-        // move on to voltage if not
-    // cycle through the T2 alarms
-    // move on to voltage
-    
+void tempSettings(byte index, String header) {
+
+    selectAddress = &tempSetCount;
+    switch (tempSetCount) {
+        case 0:
+            enterAddress = &settings[index];
+            enterModulo = 2;
+            screenHeader(header);
+            lcd.setCursor(0, 1);
+            if (settings[index] == 1) {
+                flashString(plus);
+            }    
+            else {
+                flashString(neg);
+            }
+            lcd.print(settings[index + 1]);
+            lcd.print(settings[index + 2]);
+            lcd.print(".");
+            lcd.print(settings[index + 3]);
+            lcd.print((char)223);
+            
+        break;
+        case 1:
+            enterAddress = &settings[index + 1];
+            enterModulo = 10;
+            screenHeader(header);            
+            lcd.setCursor(0, 1);
+            if (settings[index] == 1) {
+                lcd.print("+");
+            }    
+            else {
+                lcd.print("-");
+            }
+            flash(settings[index + 1]);
+            lcd.print(settings[index + 2]);
+            lcd.print(".");
+            lcd.print(settings[index + 3]);
+            lcd.print((char)223);
+        break;
+        case 2:
+            enterAddress = &settings[index + 2];
+            enterModulo = 10;
+            screenHeader(header);                    
+            lcd.setCursor(0, 1);
+            if (settings[index] == 1) {
+                lcd.print("+");
+            }    
+            else {
+                lcd.print("-");
+            }
+            lcd.print(settings[index + 1]);
+            flash(settings[index + 2]);
+            lcd.print(".");
+            lcd.print(settings[index + 3]);
+            lcd.print((char)223);
+        break;        
+        case 3:
+            enterAddress = &settings[index + 3];
+            enterModulo = 10;
+            screenHeader(header);
+            lcd.setCursor(0, 1);
+            if (settings[index] == 1) {
+                lcd.print("+");
+            }    
+            else {
+                lcd.print("-");
+            }
+            lcd.print(settings[index + 1]);
+            lcd.print(settings[index + 2]);
+            lcd.print(".");
+            flash(settings[index + 3]);
+            lcd.print((char)223);
+        break;
+        case 4:
+            selectAddress = &setupCount;
+            setupCount++;
+            tempSetCount = 0;
+        break;
+    }            
+        
 }
 
 void tempProbeScreen() {
@@ -1561,15 +1563,26 @@ void convertAlarms () {
     voltLowAlarm = settings[VLAO] + (settings[VLAT] * 10) + (settings[VLAP] * 0.1);
     voltHighAlarm = settings[VHAO] + (settings[VHAT] * 10) + (settings[VHAP] * 0.1);
 
-    tempLowAlarm = settings[TLAO] + (settings[TLAT] * 10) + (settings[TLAP] * 0.1);
-    tempHighAlarm = settings[THAO] + (settings[THAT] * 10) + (settings[THAP] * 0.1);
+    tempLowAlarm[0] = settings[TLAO] + (settings[TLAT] * 10) + (settings[TLAP] * 0.1);
+    tempHighAlarm[0] = settings[THAO] + (settings[THAT] * 10) + (settings[THAP] * 0.1);
+
+    tempLowAlarm[1] = settings[TLAOT] + (settings[TLATT] * 10) + (settings[TLAPT] * 0.1);
+    tempHighAlarm[1] = settings[THAOT] + (settings[THATT] * 10) + (settings[THAPT] * 0.1);
 
     if (!settings[TLAS]){
-      tempLowAlarm = tempLowAlarm * -1;
+      tempLowAlarm[0] = tempLowAlarm[0] * -1;
     }
 
     if (!settings[THAS]) {
-      tempHighAlarm = tempHighAlarm * -1;
+      tempHighAlarm[0] = tempHighAlarm[0] * -1;
+    }
+
+    if (!settings[TLAST]){
+      tempLowAlarm[1] = tempLowAlarm[1] * -1;
+    }
+
+    if (!settings[THAST]) {
+      tempHighAlarm[1] = tempHighAlarm[1] * -1;
     }
 }
 
@@ -1660,7 +1673,7 @@ void flashBuzzer() {
 }
 
 void checkSettings() {
-    if (tempLowAlarm >= tempHighAlarm || voltLowAlarm >= voltHighAlarm) {
+    if (tempLowAlarm[0] >= tempHighAlarm[0] || tempLowAlarm[1] >= tempHighAlarm[1] || voltLowAlarm >= voltHighAlarm) {
         lcd.clear();
         screenHeader(F("SETTINGS ERROR"));
         delay(1000);
