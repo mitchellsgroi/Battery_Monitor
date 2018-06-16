@@ -28,7 +28,7 @@
     - add amp hour alarm
     - add option to trigger relay on alarm
     - Rearrange code/functions so everything is in an order that makes sense
-    - Rewrite setup screens to account for extra temp probes
+    - DONE-- Rewrite setup screens to account for extra temp probes --DONE
 
 ## BUGS
     - Erratic current readings in test vehicle when running fridge. Switches between positive and negative triggering the charge LED
@@ -298,6 +298,7 @@ int rawVolts = 0;
 int arrayVolts[numReadings];
 float totalVolts = 0;
 int iVolts = 0;
+byte voltSetCount = 0;
 
 // CHARGING
 
@@ -1066,12 +1067,12 @@ void tempScreen(byte i, byte settingIndex) {
             lcd.print((char)223);
         break;
         case 2:
-            lcd.print(F("<"));
+            lcd.print(F("Below "));
             lcd.print(tempHighAlarm[i], 1);
             lcd.print((char)223);
         break;
         case 3:
-            lcd.print(F(">"));
+            lcd.print(F("Above "));
             lcd.print(tempLowAlarm[i], 1);
             lcd.print((char)223);
         break;
@@ -1094,12 +1095,12 @@ void voltScreen() {
             
         break;
         case 2:
-            lcd.print(F("<"));
+            lcd.print(F("Below "));
             lcd.print(voltHighAlarm, 1);
             lcd.print(F("V"));
         break;
         case 3:
-            lcd.print(F(">"));
+            lcd.print(F("Above "));
             lcd.print(voltLowAlarm, 1); 
             lcd.print(F("V")); 
         break;          
@@ -1174,84 +1175,24 @@ void setupScreen() {
             }
         break;           
         case 4:
-            enterAddress = &settings[VLAT];
-            enterModulo = 3;
-            screenHeader(voltLowString);
-            lcd.setCursor(0, 1);
-            flash(settings[VLAT]);
-            lcd.print(settings[VLAO]);
-            lcd.print(".");
-            lcd.print(settings[VLAP]);
-            lcd.print(F("V"));
+            voltSettings(VLAT, voltLowString);
         break;
         case 5:
-            enterAddress = &settings[VLAO];
-            enterModulo = 10;
-            screenHeader(voltLowString);
-            lcd.setCursor(0, 1);
-            lcd.print(settings[VLAT]);
-            flash(settings[VLAO]);
-            lcd.print(".");
-            lcd.print(settings[VLAP]);
-            lcd.print(F("V"));
+            voltSettings(VHAT, voltHighString);
         break;
         case 6:
-            enterAddress = &settings[VLAP];
-            enterModulo = 10;
-            screenHeader(voltLowString);
-            lcd.setCursor(0, 1);
-            lcd.print(settings[VLAT]);
-            lcd.print(settings[VLAO]);
-            lcd.print(".");
-            flash(settings[VLAP]);
-            lcd.print(F("V"));
-        break;
-        case 7:
-            enterAddress = &settings[VHAT];
-            enterModulo = 3;
-            screenHeader(voltHighString);
-            lcd.setCursor(0, 1);
-            flash(settings[VHAT]);
-            lcd.print(settings[VHAO]);
-            lcd.print(".");
-            lcd.print(settings[VHAP]);
-            lcd.print(F("V"));
-        break;
-        case 8:
-            enterAddress = &settings[VHAO];
-            enterModulo = 10;
-            screenHeader(voltHighString);
-            lcd.setCursor(0, 1);
-            lcd.print(settings[VHAT]);
-            flash(settings[VHAO]);
-            lcd.print(".");
-            lcd.print(settings[VHAP]);
-            lcd.print(F("V"));
-        break;
-        case 9:
-            enterAddress = &settings[VHAP];
-            enterModulo = 10;
-            screenHeader(voltHighString);
-            lcd.setCursor(0, 1);
-            lcd.print(settings[VHAT]);
-            lcd.print(settings[VHAO]);
-            lcd.print(".");
-            flash(settings[VHAP]);
-            lcd.print(F("V"));
-        break;
-        case 10:
             testerSettingScreen();
         break;
-        case 11:
+        case 7:
             tempProbeScreen();
         break;            
-        case 12:
+        case 8:
             rtcStatusScreen();
         break;    
-        case 13:
+        case 9:
             exitSetupScreen();
         break;
-        case 14:
+        case 10:
             convertAlarms();
             checkSettings();
             if (exitSetup) {
@@ -1268,6 +1209,51 @@ void setupScreen() {
                 setupCount = 0;
             }
         break;
+    }
+}
+void voltSettings(byte index, String header) {
+    selectAddress = &voltSetCount;
+    switch (voltSetCount) {
+        case 0:
+            enterAddress = &settings[index];
+            enterModulo = 3;
+            screenHeader(header);
+            lcd.setCursor(0, 1);
+            flash(settings[index]);
+            lcd.print(settings[index + 1]);
+            lcd.print(".");
+            lcd.print(settings[index + 2]);
+            lcd.print(F("V"));
+        break;
+        case 1:
+            enterAddress = &settings[index + 1];
+            enterModulo = 10;
+            screenHeader(header);
+            lcd.setCursor(0, 1);
+            lcd.print(settings[index]);
+            flash(settings[index + 1]);
+            lcd.print(".");
+            lcd.print(settings[index + 2]);
+            lcd.print(F("V"));
+        break;
+        case 2:
+            enterAddress = &settings[index + 2];
+            enterModulo = 10;
+            screenHeader(header);
+            lcd.setCursor(0, 1);
+            lcd.print(settings[index]);
+            lcd.print(settings[index + 1]);
+            lcd.print(".");
+            flash(settings[index + 2]);
+            lcd.print(F("V"));
+        break;
+        case 3:
+            selectAddress = &setupCount;
+            setupCount++;
+            voltSetCount = 0;
+        break;
+            
+
     }
 }
 
@@ -1596,7 +1582,10 @@ void settingsWrite(){
 void settingsRead(){
     // read settings from EEPROM
     for (int i = 0; i < SETTING_SIZE; i++) {
-    EEPROM.get(i, settings[i]);
+        EEPROM.get(i, settings[i]);
+        if (settings[i] > 9) {
+            settings[i] = 0;
+        }
     }
     // do only once in setup
     // make sure to handle errors
