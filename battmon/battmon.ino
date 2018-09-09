@@ -43,6 +43,12 @@
     - 2nd Run PCB has different LCD pinout than expected.
         - Use wire instead of terminal strip
 
+    - Amp hours don't reset correctly, flashes 0 then returns to previous number
+        - set ampHoourFloat to zero also and retest
+
+    - Float detection needs some fine tuning, rarely detects float
+    
+
 */
 // LIBRARIES
 #include <Wire.h>
@@ -53,9 +59,9 @@
 #include <DallasTemperature.h>
 
 // DEFINITIONS
-#define PROTO
+//define PROTO
 //#define PCBONE
-//#define PCBTWO
+#define PCBTWO
 
 //#define DEBUG
 //#define TESTING
@@ -166,6 +172,9 @@
     // VOLTAGE
     float topVolts = 28.5;
 
+    // My car
+    float kVolts = 0.97;
+
     // CURRENT
     float kCurrent = 0.0;
 
@@ -175,8 +184,8 @@
 
     // FLOAT DETECTION
     float maxVoltage = 0;
-    float floatVoltage = 13.4;
-    float chargeVoltage = 14.1;
+    float floatVoltage = 13.2;
+    float chargeVoltage = 13.9;
     bool floating = false;
     int floatSeconds = 0;   
     int floatSecondsMax = 600;
@@ -188,6 +197,7 @@
     
     LiquidCrystal lcd(12,11,5,4,3,2);
 
+    const int chargePin = 0;
     const int ledPin = 1;
     const int buzzerPin = 9;
     const int backlightPin = 10;
@@ -200,16 +210,24 @@
 
     // VOLTAGE
     float topVolts = 28.5;
+    
+    //Jayson's Car
+    float kVolts = 0.985;
+    
+    // CURRENT
+    float kCurrent = 0.0;
 
     // BUTTON VOLTAGES
-    int selectVolts = 800;
-    int enterVolts = 260;
+    int selectVolts = 509;
+    int enterVolts = 90;
 
     // FLOAT DETECTION
     float maxVoltage = 0;
     float floatVoltage = 13.4;
     float chargeVoltage = 14.1;
     bool floating = false;
+    int floatSeconds = 0;   
+    int floatSecondsMax = 600;
     
      
 #endif
@@ -292,7 +310,7 @@ float current = 0;       // final current to be displayed
 
 // voltage
 
-float kVolts = 0.97;
+
 float voltage = 12.5;     // final voltage to be displayed
 int rawVolts = 0;
 int arrayVolts[numReadings];
@@ -403,7 +421,7 @@ void setup() {
     digitalWrite(backlightPin, HIGH);
     digitalWrite(ledPin, LOW);
     digitalWrite(buzzerPin, LOW);
-    digitalWrite(relayPin, LOW);
+    digitalWrite(relayPin, HIGH);
 
     if (!RTC.isrunning()){
         lcd.clear();
@@ -966,6 +984,7 @@ void mainScreen() {
     
     if (ampHourReset) {
         ampHours = 0;
+        ampHourFloat = 0;
         ampHourReset = false;
     }
 
@@ -1662,7 +1681,7 @@ void flashBuzzer() {
 }
 
 void checkSettings() {
-    if (tempLowAlarm[0] >= tempHighAlarm[0] || tempLowAlarm[1] >= tempHighAlarm[1] || voltLowAlarm >= voltHighAlarm) {
+    if (tempLowAlarm[0] >= tempHighAlarm[0] || (numTempSensors == 2 && (tempLowAlarm[1] >= tempHighAlarm[1])) || voltLowAlarm >= voltHighAlarm) {
         lcd.clear();
         screenHeader(F("SETTINGS ERROR"));
         delay(1000);

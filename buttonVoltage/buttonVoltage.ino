@@ -57,7 +57,7 @@ void setup() {
   pinMode(backlightPin, OUTPUT);
   digitalWrite(backlightPin, HIGH);
 
-  pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(buttonPin, INPUT);
   
   lcd.begin(16, 2);
   
