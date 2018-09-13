@@ -59,9 +59,9 @@
 #include <DallasTemperature.h>
 
 // DEFINITIONS
-//define PROTO
+#define PROTO
 //#define PCBONE
-#define PCBTWO
+//#define PCBTWO
 
 //#define DEBUG
 //#define TESTING
@@ -134,6 +134,7 @@
 
     // VOLTAGE
     float topVolts = 5;
+    float kVolts = 1.0;
 
     // CURRENT
     float kCurrent = 0;
