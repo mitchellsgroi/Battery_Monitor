@@ -59,8 +59,8 @@
 #include <DallasTemperature.h>
 
 // DEFINITIONS
-#define PROTO
-//#define PCBONE
+//#define PROTO
+#define PCBONE
 //#define PCBTWO
 
 //#define DEBUG
