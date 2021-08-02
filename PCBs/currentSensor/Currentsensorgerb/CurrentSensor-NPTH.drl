@@ -1,0 +1,20 @@
+M48
+;DRILL file {KiCad 4.0.7-e2-6376~58~ubuntu16.04.1} date Sat Dec 30 21:22:22 2017
+;FORMAT={-:-/ absolute / inch / decimal}
+FMAT,2
+INCH,TZ
+T1C0.157
+T2C0.866
+%
+G90
+G05
+M72
+T1
+X5.1378Y-1.5157
+X5.1378Y-2.815
+X6.437Y-1.5157
+X6.437Y-2.815
+T2
+X5.7874Y-2.1654
+T0
+M30

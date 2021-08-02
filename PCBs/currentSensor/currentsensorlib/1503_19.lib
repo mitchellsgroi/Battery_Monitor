@@ -1,0 +1,26 @@
+EESchema-LIBRARY Version 2.3
+#encoding utf-8
+#SamacSys ECAD Model 1503_19
+#/630826/30608/2.18/5/4/Connector
+DEF 1503_19 J 0 30 Y Y 1 F N
+F0 "J" 450 150 50 H V C CNN
+F1 "1503_19" 450 -350 50 H V C CNN
+F2 "1503-19" 450 -450 50 H I C CNN
+F3 "" 450 -550 50 H I C CNN
+F4 "Jack chassis socket, 3.5mm, 4P Jack chassis socket, 3.5mm, 4P" 450 -650 50 H I C CNN "Description"
+F5 "Farnell" 450 -750 50 H I C CNN "Supplier_Name"
+F6 "2677783" 450 -850 50 H I C CNN "Farnell Part Number"
+F7 "LUMBERG" 450 -950 50 H I C CNN "Manufacturer_Name"
+F8 "1503 19" 450 -1050 50 H I C CNN "Manufacturer_Part_Number"
+F9 "" 750 -1150 50 H I C CNN "Height"
+DRAW
+S 200 100 700 -300 0 0 10 f
+X 1 1 0 0 200 R 50 50 0 0 U
+X 2 2 0 -100 200 R 50 50 0 0 U
+X 3 3 0 -200 200 R 50 50 0 0 U
+X 4(1) 4 900 0 200 L 50 50 0 0 U
+X 4(2) 5 900 -100 200 L 50 50 0 0 U
+ENDDRAW
+ENDDEF
+#
+#End Library

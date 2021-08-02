@@ -1,0 +1,69 @@
+PCBNEW-LibModule-V1  2017-12-29 01:53:18
+# encoding utf-8
+Units mm
+$INDEX
+ACJS-NH35
+$EndINDEX
+$MODULE ACJS-NH35
+Po 0 0 0 15 5a45a00e 00000000 ~~
+Li ACJS-NH35
+Cd ACJS-NH35
+Kw Connector
+Sc 0
+At STD
+AR 
+Op 0 0 0
+T0   1.27 1.27 0 0.254 N V 21 N "J**"
+T1   1.27 1.27 0 0.254 N I 21 N "ACJS-NH35"
+DS -23.4 -16 0 -16 0.2 21
+DS 0 -16 0 0 0.2 21
+DS 0 0 -23.4 0 0.2 21
+DS -23.4 0 -23.4 -16 0.2 21
+DS -23.4 -16 0 -16 0.2 24
+DS 0 -16 0 0 0.2 24
+DS 0 0 -23.4 0 0.2 24
+DS -23.4 0 -23.4 -16 0.2 24
+$PAD
+Po -2.7 -4.58
+Sh "1" C 2.25 2.25 0 0 900
+Dr 1.5 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po -5.6 -4.58
+Sh "2" C 2.25 2.25 0 0 900
+Dr 1.5 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po -9.2 -4.58
+Sh "3" C 2.25 2.25 0 0 900
+Dr 1.5 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po -2.7 -11.4
+Sh "4" C 2.25 2.25 0 0 900
+Dr 1.5 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po -5.6 -11.4
+Sh "5" C 2.25 2.25 0 0 900
+Dr 1.5 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po -9.2 -11.4
+Sh "6" C 2.25 2.25 0 0 900
+Dr 1.5 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$EndMODULE ACJS-NH35
+$EndLIBRARY

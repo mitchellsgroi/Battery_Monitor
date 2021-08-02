@@ -1,0 +1,6 @@
+(sym_lib_table
+  (lib (name A-2004-3-4-LP-N-R)(type Legacy)(uri ${KIPRJMOD}/A-2004-3-4-LP-N-R.lib)(options "")(descr ""))
+  (lib (name ACJS-NH35)(type Legacy)(uri ${KIPRJMOD}/ACJS-NH35.lib)(options "")(descr ""))
+  (lib (name 1503_19)(type Legacy)(uri ${KIPRJMOD}/1503_19.lib)(options "")(descr ""))
+  (lib (name TinyRTC)(type Legacy)(uri ${KIPRJMOD}/TinyRTC.lib)(options "")(descr ""))
+)

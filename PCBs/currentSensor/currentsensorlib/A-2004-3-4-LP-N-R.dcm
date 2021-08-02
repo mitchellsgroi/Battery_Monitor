@@ -1,0 +1,9 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP A-2004-3-4-LP-N-R
+D CONN MOD JACK 4P4C R/A UNSHLD
+K
+F http://www.assmann-wsw.com/fileadmin/datasheets/ASS_7041_CO.pdf
+$ENDCMP
+#
+#End Doc Library

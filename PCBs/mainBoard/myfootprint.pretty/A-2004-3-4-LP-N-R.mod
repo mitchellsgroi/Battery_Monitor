@@ -1,0 +1,70 @@
+PCBNEW-LibModule-V1  2017-12-28 12:22:00
+# encoding utf-8
+Units mm
+$INDEX
+A-2004-3-4-LP-N-R
+$EndINDEX
+$MODULE A-2004-3-4-LP-N-R
+Po 0 0 0 15 5a44e1e8 00000000 ~~
+Li A-2004-3-4-LP-N-R
+Cd A-2004-3-4-LP-N-R
+Kw Connector
+Sc 0
+At STD
+AR 
+Op 0 0 0
+T0 -0.514 -10.745 1.27 1.27 0 0.254 N V 21 N "J**"
+T1 -0.514 -10.745 1.27 1.27 0 0.254 N I 21 N "A-2004-3-4-LP-N-R"
+DS -5.6 -18 5.6 -18 0.2 24
+DS 5.6 -18 5.6 0 0.2 24
+DS 5.6 0 -5.6 0 0.2 24
+DS -5.6 0 -5.6 -18 0.2 24
+DS -5.6 -18 -5.6 0 0.2 21
+DS -5.6 0 5.6 0 0.2 21
+DS 5.6 0 5.6 -18 0.2 21
+DS 5.6 -18 -5.6 -18 0.2 21
+DC -6.277 -14.125 -6.47 -14.125 0.254 21
+$PAD
+Po -1.905 -14.2
+Sh "1" C 1.55 1.55 0 0 900
+Dr 1 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po -0.635 -16.74
+Sh "2" C 1.55 1.55 0 0 900
+Dr 1 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po 0.635 -14.2
+Sh "3" C 1.55 1.55 0 0 900
+Dr 1 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po 1.905 -16.74
+Sh "4" C 1.55 1.55 0 0 900
+Dr 1 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po -3.81 -7.85
+Sh "5" C 3.2 3.2 0 0 900
+Dr 3.2 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$PAD
+Po 3.81 -7.85
+Sh "6" C 3.2 3.2 0 0 900
+Dr 3.2 0 0
+At STD N 00E0FFFF
+Ne 0 ""
+$EndPAD
+$EndMODULE A-2004-3-4-LP-N-R
+$EndLIBRARY
