@@ -9,7 +9,9 @@ Despite what 4x4 and caravan accessory companies seem to advertise the state of 
 
 I have created this little Arduino based device to measure the amp-hours that have flowed in and out of the battery to give a more accurate representation of the SoC and hopefully help keep the battery from being overly discharged.
 
-A fairly unique feature of this project is that there is no usage of a shunt to measure current. This is instead achieved by a current sensing coil via hall effect. Therefore installation of the device requires very little modification to existing battery systems. 
+A fairly unique feature of this project is that there is no usage of a shunt to measure current. This is instead achieved by a current sensing coil via hall effect. Therefore installation of the device requires very little modification to existing battery systems.
+
+There is also a demo website included in this repo that gives a basic representation of the monitor in use.
 
 ## Notes
 

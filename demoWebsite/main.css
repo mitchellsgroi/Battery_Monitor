@@ -1,0 +1,95 @@
+#monitor {
+    padding: 35px;
+    background-color: #424244;
+    border-style: solid;
+    border-radius: 10px;
+    display: inline-block;
+    margin: 0 auto;
+}
+#screen {
+    background-color: #97d029;
+    display: inline-block;
+    border-radius: 10px;
+    border-style: solid;
+    border-width: 3px;
+
+}
+
+table {
+    font-family: monospace; 
+    font-size: 50px; 
+    font-style: normal; 
+    font-variant: normal; 
+    font-weight: 1000; 
+    line-height: 60px;
+    margin: 0 auto;
+    padding: 15px;
+    text-align: right;
+}
+
+td {
+    text-align: center;
+    background-color: #8bc12b;
+    border: 2px solid #97d029;
+    width: 34px;
+    min-width: 34px;
+    height: 64px;
+    padding: none;
+    margin : none;
+
+}
+
+#ampHourSymbol {
+    font-size: 18px;
+}
+
+#buttons {
+    text-align: center;
+}
+
+.bmButton {
+    background-color: #d2d2dc;
+    display: inline-block;
+    border-radius: 50%;
+    height: 65px;
+    width: 65px;
+    margin-top: 30px;
+    margin-left: 60px;
+    margin-right: 60px;
+    border: 8px solid;
+    border-color: #646675;
+    text-decoration: none;
+
+
+
+}
+
+.powerSwitches {
+    background-color: red;
+}
+
+#monitor-container {
+    text-align: center;
+}
+
+#buttons-container {
+    text-align: center;
+}
+
+#switches {
+    display: inline-block;
+    border: 3px solid;
+}
+.powerSwitches {
+
+    height: 80px;
+    text-decoration: none;
+    border: none;
+    margin: none;
+    padding: none;
+    font-size: 20px;
+}
+
+#this {
+    text-align: center;
+}
